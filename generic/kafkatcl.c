@@ -896,6 +896,13 @@ kafkatcl_topicObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			char *arrayName = Tcl_GetString (objv[4]);
 
 			rd_kafka_message_t *rdm = rd_kafka_consume (rkt, partition, timeoutMS);
+
+			if (rdm == NULL) {
+				Tcl_SetObjResult (interp, Tcl_NewStringObj (Tcl_PosixError (interp), -1));
+				resultCode = TCL_ERROR;
+				break;
+			}
+
 			resultCode = kafkatcl_message_to_tcl (interp, arrayName, rdm);
 
 			break;
