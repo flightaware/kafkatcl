@@ -1171,8 +1171,8 @@ kafkatcl_createTopicObjectCommand (kafkatcl_handleClientData *kh, char *cmdName,
 	Tcl_Interp *interp = kh->interp;
 
 	kt->kafka_topic_magic = KAFKA_TOPIC_MAGIC;
-	kt->kh = kh;
 	kt->rkt = rd_kafka_topic_new (kh->rk, topic, kh->ko->topicConf);
+	kt->kh = kh;
 	// rd_kafka_topic_conf_set_opaque 
 
 #define TOPIC_STRING_FORMAT "kafka_topic%lu"
@@ -1632,6 +1632,7 @@ kafkatcl_createHandleObjectCommand (kafkatcl_objectClientData *ko, char *cmdName
 	kh->kafka_handle_magic = KAFKA_HANDLE_MAGIC;
 	kh->interp = interp;
 	kh->rk = rk;
+	kh->ko = ko;
 
 #define HANDLE_STRING_FORMAT "kafka_handle%lu"
 	// if cmdName is #auto, generate a unique name for the object
