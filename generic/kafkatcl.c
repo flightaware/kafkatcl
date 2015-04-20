@@ -437,7 +437,33 @@ int kafkatcl_kafka_error_to_tcl (Tcl_Interp *interp, rd_kafka_resp_err_t kafkaEr
 	Tcl_ResetResult (interp);
 	Tcl_SetErrorCode (interp, "KAFKA", kafkaErrorCodeString, kafkaErrorString, string, NULL);
 	Tcl_AppendResult (interp, "kafka error: ", kafkaErrorString, NULL);
+
+	if (string != NULL && *string != '\0') {
+		Tcl_AppendResult (interp, " (", kafkaErrorString, ")", NULL);
+	}
 	return TCL_ERROR;
+}
+
+/*
+ *--------------------------------------------------------------
+ *
+ * kafkatcl_errorno_to_tcl_error -- some kafka library routines use errno
+ *   to communicate errors.  We can use rd_kafka_errno2err to convert
+ *   those to a more standard kafka error
+ *
+ * Results:
+ *      A standard Tcl result
+ *
+ * Side effects:
+ *      None.
+ *
+ *--------------------------------------------------------------
+ */
+int
+kafktcl_errno_to_tcl_error (Tcl_Interp *interp) {
+	int myErrno = Tcl_GetErrno ();
+	rd_kafka_resp_err_t kafkaError = rd_kafka_errno2err (myErrno);
+	return kafkatcl_kafka_error_to_tcl (interp, kafkaError, NULL);
 }
 
 /*
@@ -898,8 +924,7 @@ kafkatcl_topicObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			rd_kafka_message_t *rdm = rd_kafka_consume (rkt, partition, timeoutMS);
 
 			if (rdm == NULL) {
-				Tcl_SetObjResult (interp, Tcl_NewStringObj (Tcl_PosixError (interp), -1));
-				resultCode = TCL_ERROR;
+				resultCode =  kafktcl_errno_to_tcl_error (interp);
 				break;
 			}
 
@@ -989,8 +1014,7 @@ kafkatcl_topicObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			}
 
 			if (rd_kafka_produce (rkt, partition, RD_KAFKA_MSG_F_COPY, payload, payloadLength, key, keyLength, kt) < 0) {
-				Tcl_SetObjResult (interp, Tcl_NewStringObj (Tcl_PosixError (interp), -1));
-				resultCode = TCL_ERROR;
+				resultCode =  kafktcl_errno_to_tcl_error (interp);
 				break;
 			}
 			break;
@@ -1088,9 +1112,10 @@ kafkatcl_topicObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			}
 
 			if (rd_kafka_consume_start (rkt, partition, offset) < 0) {
-				Tcl_SetObjResult (interp, Tcl_NewStringObj (Tcl_PosixError (interp), -1));
-				resultCode = TCL_ERROR;
+				resultCode =  kafktcl_errno_to_tcl_error (interp);
+				break;
 			}
+
 			break;
 		}
 
@@ -1112,8 +1137,8 @@ kafkatcl_topicObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			}
 
 			if (rd_kafka_consume_stop (rkt, partition) < 0) {
-				Tcl_SetObjResult (interp, Tcl_NewStringObj (Tcl_PosixError (interp), -1));
-				resultCode = TCL_ERROR;
+				resultCode =  kafktcl_errno_to_tcl_error (interp);
+				break;
 			}
 			break;
 		}
@@ -1172,13 +1197,19 @@ kafkatcl_topicObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 int
 kafkatcl_createTopicObjectCommand (kafkatcl_handleClientData *kh, char *cmdName, const char *topic)
 {
+	rd_kafka_topic_t *rkt = rd_kafka_topic_new (kh->rk, topic, kh->ko->topicConf);
+	Tcl_Interp *interp = kh->interp;
+
+	if (rkt == NULL) {
+		return kafktcl_errno_to_tcl_error (interp);
+	}
+
 	// allocate one of our kafka topic client data objects for Tcl and 
 	// configure it
 	kafkatcl_topicClientData *kt = (kafkatcl_topicClientData *)ckalloc (sizeof (kafkatcl_topicClientData));
-	Tcl_Interp *interp = kh->interp;
 
 	kt->kafka_topic_magic = KAFKA_TOPIC_MAGIC;
-	kt->rkt = rd_kafka_topic_new (kh->rk, topic, kh->ko->topicConf);
+	kt->rkt = rkt;
 	kt->kh = kh;
 	// rd_kafka_topic_conf_set_opaque 
 
