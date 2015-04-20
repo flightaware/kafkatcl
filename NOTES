@@ -1,0 +1,67 @@
+
+
+create configuration object
+
+set confObj [kafka config create #auto]
+$confObj set socket.timeout.ms 600
+
+it also has topic configuration properties
+
+it has a dump function for configuration properties and topic configuration properties
+
+rd_kafka_topic_conf_dump returns an array of pointers to char* of key value pairs so it would be awful easy to go from that to an array or list
+
+
+it has callbacks
+
+	delivery report callback
+
+	delivery report message callback
+
+	error callback
+
+	log callback
+
+	statistics callback
+
+	socket callback
+
+	open callback
+
+it has an "opaque pointer" that can be set which is our ticket in for clientData
+
+
+
+there is a kaka object or kafka handle
+
+it takes a config and a type which is probably producer or consumer and returns a pointer to rd_kafka_t
+
+there is a topic handle
+
+there is a queue API for message queues which it says allows the app to re-route consumed messages from multiple topics+partitions into one single queue point.  Not sure what the deal is but looks interesting.
+
+there is a new and destroy for queues so there may need to be a queue object in kafkatcl too
+
+through rd_kafka_consume_callback you specify a callback function that will be called when messages arrive
+
+this might be where we use queues, like these callbacks occur and 
+
+producer api
+
+int rd_kafka_produce (rd_kafka_topic_t *rkt, int32_t partitition,
+					  int msgflags,
+					  void *payload, size_t len,
+					  const void *key, size_t keylen,
+					  void *msg_opaque);
+
+You can send an array of multiple messages using rd_kafka_produce_batch
+
+metadata api
+
+create producer and consumer handles off of a configuration
+
+create topics off of producer and consumer handles
+
+your message delivered callbacks go off of the configuration, not the handle or topic
+
+but you get the kafka handle as an argument in the callback

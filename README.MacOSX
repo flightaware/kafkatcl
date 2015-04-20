@@ -1,0 +1,3 @@
+# configure arguments for Mac OS X when Tcl is installed from macports.org
+#
+./configure --prefix=/opt/local --with-tcl=/opt/local/lib/tclConfig.sh 
