@@ -1120,6 +1120,38 @@ kafkatcl_topicObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 		}
 
 		case OPT_CONSUME_START_QUEUE: {
+			int64_t offset;
+			int partition;
+
+			if (objc != 5) {
+				Tcl_WrongNumArgs (interp, 2, objv, "partition offset queue");
+				return TCL_ERROR;
+			}
+
+			if (Tcl_GetIntFromObj (interp, objv[2], &partition) == TCL_ERROR) {
+				resultCode = TCL_ERROR;
+				break;
+			}
+
+			if (kafkatcl_parse_offset (interp, objv[3], &offset) != TCL_OK) {
+				resultCode = TCL_ERROR;
+				break;
+			}
+
+			char *queueCommandName = Tcl_GetString (objv[4]);
+			kafkatcl_queueClientData *qcd = kafkatcl_queue_command_to_queueClientData (interp, queueCommandName);
+			if (qcd == NULL) {
+				Tcl_SetObjResult (interp, Tcl_NewStringObj ("command name '", -1));
+				Tcl_AppendResult (interp, queueCommandName, "' is not a kafkatcl queue object", NULL);
+				resultCode = TCL_ERROR;
+				break;
+			}
+
+			if (rd_kafka_consume_start_queue (rkt, partition, offset, qcd->rkqu) < 0) {
+				resultCode =  kafktcl_errno_to_tcl_error (interp);
+				break;
+			}
+
 			break;
 		}
 
