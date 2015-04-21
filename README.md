@@ -80,17 +80,17 @@ Methods of kafka interface object
 
 * *$kafka* **config**
 
-* *$kafka* **add_brokers** *brokerList*
-
 * *$kafka* **create_producer** *cmdName*
 
-Create a producer handle object.
+Create a kafkatcl producer handle object.
 
 * *$kafka* **create_consumer** *cmdName*
 
-Create a consumer handle object.
+Create a kafkatcl consumer handle object.
 
 * *$kafka* **set_topic_conf** 
+
+Set a single kafka topic value by property name.
 
 * *$kafka* **set_delivery_report_callback** 
 
@@ -102,13 +102,15 @@ Create a consumer handle object.
 
 * *$kafka* **set_socket_callback** 
 
-* *$kafka* **get_configuration** 
+* *$kafka* **get_configuration** *array*
 
-* *$kafka* **get_topic_configuration** 
+Store the kafka object's configuration properties into the specified array.
+
+* *$kafka* **get_topic_configuration**  *array*
+
+Store the kafka object's topic configuration properties into the specified array.
 
 * *$kafka* **logging_callback** 
-
-* *$kafka* **log_level** 
 
 Methods of kafka handle object
 ---
@@ -121,9 +123,17 @@ Return the kafka name of the handle.
 
 Creates a new topic command representing the specified topicrepresenting the specified topic
 
+* *$handle* **log_level** *level*
+
+Set the log level to one of **emerg**, **alert**, **crit**, **err**, **warning**, **notice**, **info**, or **debug**.
+
+* $handle* **add_brokers** *brokerList*
+
+Add a list of kafka brokers to the kafka handle object.
+
 * $handle* delete
 
-Delete the handle.
+Delete the handle object, destroying the command.
 
 Methods of kafka topic object
 ---
@@ -132,21 +142,29 @@ Methods of kafka topic object
 
 Consume one message from the specified partition without *timeout* milliseconds into array *array*.  If there's an error, you get a Tcl error.
 
-Messages contain
+* *$topic* **consume_batch** *partition* *timeout* *count* *array* *code*
 
-* *$topic* **consume_one**
+Read up to *count* messages or however many have come in less than that without *timeout* milliseconds.
 
-* *$topic* **consume_batch**
+For each message received fill the array *array* with fields from the message containing the message *payload*, *partition*, *offset*, *topic* name and optional *key*, repeatedly executing *code* for each message received.
 
-* *$topic* **consume_start**
+* *$topic* **consume_start** *partition* *offset*
 
-* *$topic* **consume_start_queue**
+Start consuming the established topic for the specified *partition* starting at offset *offset*.
 
-* *$topic* **consume_stop**
+* *$topic* **consume_start_queue** *partition* *offset* *queue*
+
+Start consuming the established topic for the specified *partition*, starting at offset *offset*, re-routing incoming messages to the specified kafkatcl *queue* command object.
+
+* *$topic* **consume_stop** *partition*
+
+Stop consuming messages for the established topic and specified *partition*, purging all messages currently in the local queue.
 
 * *$topic* **consume_callback**
 
 * *$topic* **partition_available**
+
+Return true if the partition is available, i.e. has a leader broker, else 0.
 
 * $topic* **delete**
 
