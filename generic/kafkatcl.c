@@ -866,7 +866,9 @@ kafkatcl_topicObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 
     static CONST char *options[] = {
         "consume_one",
+        "produce_one",
         "consume_batch",
+        "produce_batch",
         "consume_start",
         "consume_start_queue",
         "consume_stop",
@@ -1494,6 +1496,17 @@ kafkatcl_add_brokers (kafkatcl_handleClientData *kh, char *brokers) {
 	}
 	return TCL_OK;
 }
+
+#if 0
+int
+kafkatcl_metadata_to_tcl (Tcl_Interp *interp, rd_kafka_t *rk)
+{
+	rd_kafka_metadata_t *metaData;
+	rd_kafka_resp_err_t kafkaError;
+	
+	kafkaError = rd_kafka_metadata (rk, allTopics, onlyTopic, *metaData, timeoutMS);
+}
+#endif
 
 /*
  *----------------------------------------------------------------------
