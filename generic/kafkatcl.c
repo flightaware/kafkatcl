@@ -851,7 +851,7 @@ void kafkatcl_logging_callback (const CassLogMessage *message, void *data) {
 /*
  *----------------------------------------------------------------------
  *
- * kafkatcl_topicObjectObjCmd --
+ * kafkatcl_topicConsumerObjectObjCmd --
  *
  *    dispatches the subcommands of a kafkatcl batch-handling command
  *
@@ -861,7 +861,7 @@ void kafkatcl_logging_callback (const CassLogMessage *message, void *data) {
  *----------------------------------------------------------------------
  */
 int
-kafkatcl_topicObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 {
     int         optIndex;
 	kafkatcl_topicClientData *kt = (kafkatcl_topicClientData *)cData;
@@ -870,9 +870,7 @@ kafkatcl_topicObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 
     static CONST char *options[] = {
         "consume_one",
-        "produce_one",
         "consume_batch",
-        "produce_batch",
         "consume_start",
         "consume_start_queue",
         "consume_stop",
@@ -884,9 +882,7 @@ kafkatcl_topicObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 
     enum options {
 		OPT_CONSUME_ONE,
-		OPT_PRODUCE_ONE,
 		OPT_CONSUME_BATCH,
-		OPT_PRODUCE_BATCH,
 		OPT_CONSUME_START,
 		OPT_CONSUME_START_QUEUE,
 		OPT_CONSUME_STOP,
@@ -993,108 +989,6 @@ kafkatcl_topicObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 				}
 			}
 
-			break;
-		}
-
-		case OPT_PRODUCE_ONE: {
-			int partition;
-
-			if (objc < 4 || objc > 5) {
-				Tcl_WrongNumArgs (interp, 2, objv, "partition payload ?key?");
-				return TCL_ERROR;
-			}
-
-			if (Tcl_GetIntFromObj (interp, objv[2], &partition) == TCL_ERROR) {
-				resultCode = TCL_ERROR;
-				break;
-			}
-
-			int payloadLength;
-			unsigned char *payload = Tcl_GetByteArrayFromObj (objv[3], &payloadLength);
-
-			const void *key = NULL;
-			int keyLength = 0;
-
-			if (objc == 5) {
-				key = Tcl_GetByteArrayFromObj (objv[4], &keyLength);
-			}
-
-			if (rd_kafka_produce (rkt, partition, RD_KAFKA_MSG_F_COPY, payload, payloadLength, key, keyLength, kt) < 0) {
-				resultCode =  kafktcl_errno_to_tcl_error (interp);
-				break;
-			}
-			break;
-		}
-
-		case OPT_PRODUCE_BATCH: {
-			int listObjc;
-			Tcl_Obj **listObjv;
-			int partition;
-
-			if (objc != 4) {
-				Tcl_WrongNumArgs (interp, 2, objv, "partition list-of-payload-key-lists");
-				return TCL_ERROR;
-			}
-
-			if (Tcl_GetIntFromObj (interp, objv[2], &partition) == TCL_ERROR) {
-				resultCode = TCL_ERROR;
-				break;
-			}
-
-			if (Tcl_ListObjGetElements (interp, objv[3], &listObjc, &listObjv) == TCL_ERROR) {
-				Tcl_AppendResult (interp, " while parsing list of partition-payload-key lists", NULL);
-				resultCode = TCL_ERROR;
-				break;
-			}
-
-			int i;
-
-			if (listObjc == 0) {
-				break;
-			}
-
-			rd_kafka_message_t *rkmessages = (rd_kafka_message_t *)ckalloc (sizeof(rd_kafka_message_t) * listObjc);
-
-			for (i = 0; i < listObjc; i++) {
-				int rowObjc;
-				Tcl_Obj **rowObjv;
-
-				if (Tcl_ListObjGetElements (interp, listObjv[i], &rowObjc, &rowObjv) == TCL_ERROR) {
-					Tcl_AppendResult (interp, " while parsing list within partition-payload-key lists", NULL);
-					resultCode = TCL_ERROR;
-					goto batcherr;
-				}
-
-				if (rowObjc < 1 || rowObjc > 2) {
-					Tcl_AppendResult (interp, " list within payload-key must contain payload and optional key", NULL);
-					resultCode = TCL_ERROR;
-					goto batcherr;
-				}
-
-				int payloadLength;
-				unsigned char *payload = Tcl_GetByteArrayFromObj (rowObjv[0], &payloadLength);
-
-				void *key = NULL;
-				int keyLength = 0;
-
-				rd_kafka_message_t *rk = &rkmessages[i];
-
-				rk->payload = payload;
-				rk->len = payloadLength;
-
-				rk->key = key;
-				rk->key_len = keyLength;
-			}
-
-			int nDone = rd_kafka_produce_batch (rkt, partition, RD_KAFKA_MSG_F_COPY, rkmessages, listObjc);
-			ckfree(rkmessages);
-
-			// NB dig through rkmessages looking for errors
-			if (nDone != listObjc) {
-				resultCode = TCL_ERROR;
-			}
-
-		  batcherr:
 			break;
 		}
 
@@ -1222,6 +1116,188 @@ kafkatcl_topicObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 /*
  *----------------------------------------------------------------------
  *
+ * kafkatcl_topicProducerObjectObjCmd --
+ *
+ *    dispatches the subcommands of a kafkatcl batch-handling command
+ *
+ * Results:
+ *    stuff
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+{
+    int         optIndex;
+	kafkatcl_topicClientData *kt = (kafkatcl_topicClientData *)cData;
+	rd_kafka_topic_t *rkt = kt->rkt;
+	int resultCode = TCL_OK;
+
+    static CONST char *options[] = {
+        "produce_one",
+        "produce_batch",
+        "partition_available",
+        "delete",
+        NULL
+    };
+
+    enum options {
+		OPT_PRODUCE_ONE,
+		OPT_PRODUCE_BATCH,
+		OPT_PARTITION_AVAILABLE,
+		OPT_DELETE
+    };
+
+    /* basic validation of command line arguments */
+    if (objc < 2) {
+        Tcl_WrongNumArgs (interp, 1, objv, "subcommand ?args?");
+        return TCL_ERROR;
+    }
+
+    if (Tcl_GetIndexFromObj (interp, objv[1], options, "option", TCL_EXACT, &optIndex) != TCL_OK) {
+		return TCL_ERROR;
+    }
+
+    switch ((enum options) optIndex) {
+		case OPT_PRODUCE_ONE: {
+			int partition;
+
+			if (objc < 4 || objc > 5) {
+				Tcl_WrongNumArgs (interp, 2, objv, "partition payload ?key?");
+				return TCL_ERROR;
+			}
+
+			if (Tcl_GetIntFromObj (interp, objv[2], &partition) == TCL_ERROR) {
+				resultCode = TCL_ERROR;
+				break;
+			}
+
+			int payloadLength;
+			unsigned char *payload = Tcl_GetByteArrayFromObj (objv[3], &payloadLength);
+
+			const void *key = NULL;
+			int keyLength = 0;
+
+			if (objc == 5) {
+				key = Tcl_GetByteArrayFromObj (objv[4], &keyLength);
+			}
+
+			if (rd_kafka_produce (rkt, partition, RD_KAFKA_MSG_F_COPY, payload, payloadLength, key, keyLength, kt) < 0) {
+				resultCode =  kafktcl_errno_to_tcl_error (interp);
+				break;
+			}
+			break;
+		}
+
+		case OPT_PRODUCE_BATCH: {
+			int listObjc;
+			Tcl_Obj **listObjv;
+			int partition;
+
+			if (objc != 4) {
+				Tcl_WrongNumArgs (interp, 2, objv, "partition list-of-payload-key-lists");
+				return TCL_ERROR;
+			}
+
+			if (Tcl_GetIntFromObj (interp, objv[2], &partition) == TCL_ERROR) {
+				resultCode = TCL_ERROR;
+				break;
+			}
+
+			if (Tcl_ListObjGetElements (interp, objv[3], &listObjc, &listObjv) == TCL_ERROR) {
+				Tcl_AppendResult (interp, " while parsing list of partition-payload-key lists", NULL);
+				resultCode = TCL_ERROR;
+				break;
+			}
+
+			int i;
+
+			if (listObjc == 0) {
+				break;
+			}
+
+			rd_kafka_message_t *rkmessages = (rd_kafka_message_t *)ckalloc (sizeof(rd_kafka_message_t) * listObjc);
+
+			for (i = 0; i < listObjc; i++) {
+				int rowObjc;
+				Tcl_Obj **rowObjv;
+
+				if (Tcl_ListObjGetElements (interp, listObjv[i], &rowObjc, &rowObjv) == TCL_ERROR) {
+					Tcl_AppendResult (interp, " while parsing list within partition-payload-key lists", NULL);
+					resultCode = TCL_ERROR;
+					goto batcherr;
+				}
+
+				if (rowObjc < 1 || rowObjc > 2) {
+					Tcl_AppendResult (interp, " list within payload-key must contain payload and optional key", NULL);
+					resultCode = TCL_ERROR;
+					goto batcherr;
+				}
+
+				int payloadLength;
+				unsigned char *payload = Tcl_GetByteArrayFromObj (rowObjv[0], &payloadLength);
+
+				void *key = NULL;
+				int keyLength = 0;
+
+				rd_kafka_message_t *rk = &rkmessages[i];
+
+				rk->payload = payload;
+				rk->len = payloadLength;
+
+				rk->key = key;
+				rk->key_len = keyLength;
+			}
+
+			int nDone = rd_kafka_produce_batch (rkt, partition, RD_KAFKA_MSG_F_COPY, rkmessages, listObjc);
+			ckfree(rkmessages);
+
+			// NB dig through rkmessages looking for errors
+			if (nDone != listObjc) {
+				resultCode = TCL_ERROR;
+			}
+
+		  batcherr:
+			break;
+		}
+
+		case OPT_PARTITION_AVAILABLE: {
+			int partition;
+
+			if (objc != 3) {
+				Tcl_WrongNumArgs (interp, 2, objv, "partition");
+				return TCL_ERROR;
+			}
+
+			if (Tcl_GetIntFromObj (interp, objv[2], &partition) == TCL_ERROR) {
+				resultCode = TCL_ERROR;
+				break;
+			}
+
+			int avail = rd_kafka_topic_partition_available (rkt, partition);
+			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (avail));
+			resultCode = TCL_OK;
+			break;
+		}
+
+		case OPT_DELETE: {
+			if (objc != 2) {
+				Tcl_WrongNumArgs (interp, 2, objv, "");
+				return TCL_ERROR;
+			}
+
+			if (Tcl_DeleteCommandFromToken (kt->kh->interp, kt->cmdToken) == TCL_ERROR) {
+				resultCode = TCL_ERROR;
+			}
+			break;
+		}
+    }
+    return resultCode;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
  * kafkatcl_createTopicObjectCommand --
  *
  *    given a kafkatcl_handleClientData pointer, an object name (or "#auto"),
@@ -1235,12 +1311,27 @@ kafkatcl_topicObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 int
 kafkatcl_createTopicObjectCommand (kafkatcl_handleClientData *kh, char *cmdName, const char *topic)
 {
-	rd_kafka_topic_t *rkt = rd_kafka_topic_new (kh->rk, topic, kh->ko->topicConf);
 	Tcl_Interp *interp = kh->interp;
+	Tcl_ObjCmdProc *proc = NULL;
 
+	rd_kafka_topic_t *rkt = rd_kafka_topic_new (kh->rk, topic, kh->ko->topicConf);
 	if (rkt == NULL) {
 		return kafktcl_errno_to_tcl_error (interp);
 	}
+
+	switch (kh->kafkaType) {
+		case RD_KAFKA_PRODUCER:
+			proc = kafkatcl_topicProducerObjectObjCmd;
+			break;
+
+		case RD_KAFKA_CONSUMER:
+			proc = kafkatcl_topicConsumerObjectObjCmd;
+			break;
+
+		default:
+			assert (0 == 1);
+	}
+
 
 	// allocate one of our kafka topic client data objects for Tcl and 
 	// configure it
@@ -1263,7 +1354,7 @@ kafkatcl_createTopicObjectCommand (kafkatcl_handleClientData *kh, char *cmdName,
 	}
 
 	// create a Tcl command to interface to the topic object
-	kt->cmdToken = Tcl_CreateObjCommand (interp, cmdName, kafkatcl_topicObjectObjCmd, kt, kafkatcl_topicObjectDelete);
+	kt->cmdToken = Tcl_CreateObjCommand (interp, cmdName, proc, kt, kafkatcl_topicObjectDelete);
 	// set the full name to the command in the interpreter result
 	Tcl_GetCommandFullName(interp, kt->cmdToken, Tcl_GetObjResult (interp));
 	if (autoGeneratedName == 1) {
@@ -1580,7 +1671,6 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 			char *topic = Tcl_GetString (objv[3]);
 
 			resultCode = kafkatcl_createTopicObjectCommand (kh, cmdName, topic);
-
 			break;
 		}
 
@@ -1674,7 +1764,7 @@ kafkatcl_set_topic_conf (kafkatcl_objectClientData *ko, char *name, char *value)
  *----------------------------------------------------------------------
  */
 int
-kafkatcl_create_kafka_handle (kafkatcl_handleClientData *kh, int type) {
+kafkatcl_create_kafka_handle (kafkatcl_handleClientData *kh, rd_kafka_type_t type) {
 	char errStr[256];
 	rd_kafka_t *rk = rd_kafka_new (type, kh->ko->conf, errStr, sizeof(errStr));
 	Tcl_Interp *interp = kh->interp;
@@ -1684,6 +1774,7 @@ kafkatcl_create_kafka_handle (kafkatcl_handleClientData *kh, int type) {
 		return TCL_ERROR;
 	}
 	kh->rk = rk;
+	kh->kafkaType = type;
 	return TCL_OK;
 }
 
@@ -1720,6 +1811,7 @@ kafkatcl_createHandleObjectCommand (kafkatcl_objectClientData *ko, char *cmdName
 	kh->interp = interp;
 	kh->rk = rk;
 	kh->ko = ko;
+	kh->kafkaType = kafkaType;
 
 #define HANDLE_STRING_FORMAT "kafka_handle%lu"
 	// if cmdName is #auto, generate a unique name for the object
@@ -1812,7 +1904,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 
 		case OPT_CREATE_CONSUMER:
 		case OPT_CREATE_PRODUCER: {
-			int type;
+			rd_kafka_type_t type;
 
 			if (objc != 3) {
 				Tcl_WrongNumArgs (interp, 2, objv, "cmdName");

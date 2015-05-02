@@ -46,6 +46,7 @@ typedef struct kafkatcl_handleClientData
     rd_kafka_t *rk;
 	kafkatcl_objectClientData *ko;
     Tcl_Command cmdToken;
+	rd_kafka_type_t kafkaType;
 } kafkatcl_handleClientData;
 
 typedef struct kafkatcl_topicClientData
