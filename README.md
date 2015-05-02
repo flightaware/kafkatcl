@@ -121,7 +121,9 @@ Return the kafka name of the handle.
 
 * *$handle* **new_topic** *commandName* *topic*
 
-Creates a new topic command representing the specified topicrepresenting the specified topic
+Creates a new topic consumer or producer object corresponding to the specified topic.
+
+If the handle was created with the **create_producer** method then a topic producer object will be created.  If it was created with the **create_consumer** method then a topic consumer object will be created.
 
 * *$handle* **log_level** *level*
 
@@ -135,7 +137,16 @@ Add a list of kafka brokers to the kafka handle object.
 
 Delete the handle object, destroying the command.
 
-Methods of kafka topic object
+Methods of kafka topic producer object
+---
+
+* *$topic* **produce_one** *partition* *payload* *?key?*
+
+Produce one message into the specified partition.  If there's an error, you get a Tcl error.  IF the partition is -1 then the unassigned partition is specified, indicating that kafka should partition using the configured or default partitioner.
+
+If *key* is specified then it's passed to the topic partitioner as well as sent to the broker and passed to the consumer.  That means the partitioning algorithm can use that to help pick the partition.  Also it's a value that can be sent through alongside the payload.
+
+Methods of kafka topic consumer object
 ---
 
 * *$topic* **consume_one** *partition* *timeout* *array*
@@ -162,13 +173,11 @@ Stop consuming messages for the established topic and specified *partition*, pur
 
 * *$topic* **consume_callback**
 
-* *$topic* **partition_available**
-
-Return true if the partition is available, i.e. has a leader broker, else 0.
+Not implemented yet.
 
 * $topic* **delete**
 
-Delete the topic.
+Delete the topic object.
 
 Received Kafka Messages
 ---

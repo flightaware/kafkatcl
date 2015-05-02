@@ -875,7 +875,6 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
         "consume_start_queue",
         "consume_stop",
         "consume_callback",
-        "partition_available",
         "delete",
         NULL
     };
@@ -887,7 +886,6 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 		OPT_CONSUME_START_QUEUE,
 		OPT_CONSUME_STOP,
 		OPT_CONSUME_CALLBACK,
-		OPT_PARTITION_AVAILABLE,
 		OPT_DELETE
     };
 
@@ -1079,25 +1077,6 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			break;
 		}
 
-		case OPT_PARTITION_AVAILABLE: {
-			int partition;
-
-			if (objc != 3) {
-				Tcl_WrongNumArgs (interp, 2, objv, "partition");
-				return TCL_ERROR;
-			}
-
-			if (Tcl_GetIntFromObj (interp, objv[2], &partition) == TCL_ERROR) {
-				resultCode = TCL_ERROR;
-				break;
-			}
-
-			int avail = rd_kafka_topic_partition_available (rkt, partition);
-			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (avail));
-			resultCode = TCL_OK;
-			break;
-		}
-
 		case OPT_DELETE: {
 			if (objc != 2) {
 				Tcl_WrongNumArgs (interp, 2, objv, "");
@@ -1136,7 +1115,6 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
     static CONST char *options[] = {
         "produce_one",
         "produce_batch",
-        "partition_available",
         "delete",
         NULL
     };
@@ -1144,7 +1122,6 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
     enum options {
 		OPT_PRODUCE_ONE,
 		OPT_PRODUCE_BATCH,
-		OPT_PARTITION_AVAILABLE,
 		OPT_DELETE
     };
 
@@ -1258,25 +1235,6 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			}
 
 		  batcherr:
-			break;
-		}
-
-		case OPT_PARTITION_AVAILABLE: {
-			int partition;
-
-			if (objc != 3) {
-				Tcl_WrongNumArgs (interp, 2, objv, "partition");
-				return TCL_ERROR;
-			}
-
-			if (Tcl_GetIntFromObj (interp, objv[2], &partition) == TCL_ERROR) {
-				resultCode = TCL_ERROR;
-				break;
-			}
-
-			int avail = rd_kafka_topic_partition_available (rkt, partition);
-			Tcl_SetObjResult (interp, Tcl_NewBooleanObj (avail));
-			resultCode = TCL_OK;
 			break;
 		}
 
