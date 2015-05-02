@@ -195,3 +195,20 @@ The offset.
 
 The name of the topic.
 
+Setting up a consumer
+---
+
+```tcl
+package require kafkatcl
+
+::kafkatcl::kafka create kafka_master
+
+kafka_master create_consumer kafka_consumer
+
+kafka_consumer new_topic consumer test
+
+consumer consume_start 0 0
+
+consumer consume_one 0 2000 foo
+parray foo
+```
