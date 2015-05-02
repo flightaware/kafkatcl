@@ -144,7 +144,10 @@ kafkatcl_parse_offset (Tcl_Interp *interp, Tcl_Obj *offsetObj, int64_t *offsetPt
 	Tcl_WideInt offsetCount;
 	int optionIndex;
 
-	if (Tcl_GetWideIntFromObj (interp, offsetObj, &offsetCount) == TCL_OK) {
+	// use NULL for interp because we don't need an error message if
+	// the int conversion fails -- we want to try for some strings
+	// afterwards
+	if (Tcl_GetWideIntFromObj (NULL, offsetObj, &offsetCount) == TCL_OK) {
 		if (offsetCount < 0)  {
 			*offsetPtr = (RD_KAFKA_OFFSET_TAIL(-offsetCount));
 			return TCL_OK;
@@ -189,7 +192,8 @@ kafkatcl_parse_offset (Tcl_Interp *interp, Tcl_Obj *offsetObj, int64_t *offsetPt
 			break;
 		}
 	}
-return TCL_OK;
+
+	return TCL_OK;
 }
 
 /*
@@ -1969,6 +1973,7 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 			ko->kafka_object_magic = KAFKA_OBJECT_MAGIC;
 			ko->interp = interp;
 			ko->conf = rd_kafka_conf_new ();
+			ko->topicConf = rd_kafka_topic_conf_new ();
 
 			ko->threadId = Tcl_GetCurrentThread();
 
