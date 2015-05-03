@@ -1991,11 +1991,13 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 
     static CONST char *options[] = {
         "create",
+        "version",
         NULL
     };
 
     enum options {
         OPT_CREATE,
+		OPT_VERSION
     };
 
     // basic command line processing
@@ -2011,6 +2013,15 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
     }
 
     switch ((enum options) optIndex) {
+		case OPT_VERSION: {
+			if (objc != 2) {
+				Tcl_WrongNumArgs (interp, 2, objv, "");
+				return TCL_ERROR;
+			}
+			Tcl_SetObjResult (interp, Tcl_NewStringObj (rd_kafka_version_str(), -1));
+			return TCL_OK;
+		}
+
 		case OPT_CREATE: {
 			if (objc != 3) {
 				Tcl_WrongNumArgs (interp, 1, objv, "option arg");

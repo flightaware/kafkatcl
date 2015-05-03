@@ -49,17 +49,25 @@ Overview
 
 You've got your kafka object, which is like your master connection.
 
-You've got handle objects, from handles you create topic objects.
+Using methods of your kafka object you create kafka handle objects.
 
-Topic objects are used to consume or produce messages to kafka.
+Kafka handle objects are used to create topic producers and consumers.
+
+Topic producer and consumer objects are used to produce and consume messages to kafka.
 
 
-KafkaTcl objects
+KafkaTcl command
 ---
 
-KafkaTcl provides object creation commands...
+The kafkatcl command from which all others are created is **::kafkatcl::kafka**.
 
-::kafkatcl::kafka create handle, to create a kafka object.
+* **kafkatcl::kafka** **version**
+
+Returns the kafka version as a string, like 0.8.6.
+
+* **kafkatcl::kafka** **create** *command*
+
+Create a kafka object.
 
 ```tcl
 set kafka [::kafkatcl::kafka create #auto]
@@ -88,19 +96,29 @@ Create a kafkatcl producer handle object.
 
 Create a kafkatcl consumer handle object.
 
-* *$kafka* **set_topic_conf** 
+* *$kafka* **set_topic_conf** *key* *value*
 
-Set a single kafka topic value by property name.
+Set a single kafka topic configuration value by property name.
 
 * *$kafka* **set_delivery_report_callback** 
 
+Not yet implemented.
+
 * *$kafka* **set_error_callback** 
+
+Not yet implemented.
 
 * *$kafka* **set_logger_callback** 
 
+Not yet implemented.
+
 * *$kafka* **set_statistics_callback** 
 
+Not yet implemented.
+
 * *$kafka* **set_socket_callback** 
+
+Not yet implemented.
 
 * *$kafka* **get_configuration** *array*
 
