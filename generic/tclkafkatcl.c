@@ -17,7 +17,7 @@
 /*
  *----------------------------------------------------------------------
  *
- * Kafkatcl_Init --
+ * Kafka_Init --
  *
  *	Initialize the kafkatcl extension.  The string "kafkatcl"
  *      in the function name must match the PACKAGE declaration at the top of
@@ -33,7 +33,7 @@
  */
 
 EXTERN int
-Kafkatcl_Init(Tcl_Interp *interp)
+Kafka_Init(Tcl_Interp *interp)
 {
     Tcl_Namespace *namespace;
     /*
@@ -80,10 +80,10 @@ Kafkatcl_Init(Tcl_Interp *interp)
  */
 
 EXTERN int
-Kafkatcl_SafeInit(Tcl_Interp *interp)
+Kafka_SafeInit(Tcl_Interp *interp)
 {
     /*
-     * can this work safely?  seems too dangerous...
+     * can this work safely?  I don't know...
      */
     return TCL_ERROR;
 }

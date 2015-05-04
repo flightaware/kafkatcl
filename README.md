@@ -226,7 +226,7 @@ Setting up a consumer
 ---
 
 ```tcl
-package require kafkatcl
+package require kafka
 
 ::kafkatcl::kafka create kafka_master
 
