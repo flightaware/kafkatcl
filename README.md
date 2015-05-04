@@ -225,6 +225,8 @@ The name of the topic.
 Setting up a consumer
 ---
 
+Create a kafka object, from that use the *create_consumer* method to create a kafka consumer-creating object.  From that create a topic consuming object to read messages.
+
 ```tcl
 package require kafka
 
@@ -238,4 +240,21 @@ consumer consume_start 0 0
 
 consumer consume_one 0 2000 foo
 parray foo
+```
+
+Setting up a producer
+---
+
+Create a kafka object, from that use the *create_producer* method to create a kafka producer-creating object.  From that create a topic producing object to produce messages to.  key is optional.
+
+```tcl
+package require kafka
+
+::kafkatcl::kafka create kafka_master
+
+kafka_master create_producer kafka_producer
+
+kafka_producer new_topic producer test
+
+producer produce_one $partition $payload $key
 ```
