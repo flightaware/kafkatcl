@@ -183,7 +183,7 @@ kafkatcl_parse_offset (Tcl_Interp *interp, Tcl_Obj *offsetObj, int64_t *offsetPt
 		}
 
         case OPT_END: {
-			*offsetPtr = RD_KAFKA_OFFSET_BEGINNING;
+			*offsetPtr = RD_KAFKA_OFFSET_END;
 			break;
 		}
 

@@ -177,6 +177,8 @@ Read up to *count* messages or however many have come in less than that without 
 
 For each message received fill the array *array* with fields from the message containing the message *payload*, *partition*, *offset*, *topic* name and optional *key*, repeatedly executing *code* for each message received.
 
+*offset* can be **beginning** to start consuming at the beginning of the partition (i.e. the oldest message in the partition), **end** to start consuming from the end of the partition, **stored** to start consuming from the offset retrieved from the offset store, whatever that means, a positive integer, which starts consuming starting from the specified message number from that partition, or a negative integer, which says to start consuming that many messages from the end.
+
 * *$topic* **consume_start** *partition* *offset*
 
 Start consuming the established topic for the specified *partition* starting at offset *offset*.
@@ -212,7 +214,7 @@ The partition number.
 
 * key
 
-The optional key.
+The key will be provided if the (optional) key was specified when the message was produced.
 
 * offset
 
