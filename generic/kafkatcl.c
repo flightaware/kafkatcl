@@ -869,7 +869,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 	int resultCode = TCL_OK;
 
     static CONST char *options[] = {
-        "consume_one",
+        "consume",
         "consume_batch",
         "consume_start",
         "consume_start_queue",
@@ -880,7 +880,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
     };
 
     enum options {
-		OPT_CONSUME_ONE,
+		OPT_CONSUME,
 		OPT_CONSUME_BATCH,
 		OPT_CONSUME_START,
 		OPT_CONSUME_START_QUEUE,
@@ -900,7 +900,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
     }
 
     switch ((enum options) optIndex) {
-		case OPT_CONSUME_ONE: {
+		case OPT_CONSUME: {
 			int partition;
 			int timeoutMS;
 
@@ -1113,14 +1113,14 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 	int resultCode = TCL_OK;
 
     static CONST char *options[] = {
-        "produce_one",
+        "produce",
         "produce_batch",
         "delete",
         NULL
     };
 
     enum options {
-		OPT_PRODUCE_ONE,
+		OPT_PRODUCE,
 		OPT_PRODUCE_BATCH,
 		OPT_DELETE
     };
@@ -1136,7 +1136,7 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
     }
 
     switch ((enum options) optIndex) {
-		case OPT_PRODUCE_ONE: {
+		case OPT_PRODUCE: {
 			int partition;
 
 			if (objc < 4 || objc > 5) {
