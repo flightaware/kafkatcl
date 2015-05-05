@@ -1586,6 +1586,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
         "new_topic",
 		"log_level",
 		"add_brokers",
+		"logger",
         "delete",
         NULL
     };
@@ -1595,6 +1596,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 		OPT_NEW_TOPIC,
 		OPT_LOG_LEVEL,
 		OPT_ADD_BROKERS,
+		OPT_LOGGER,
 		OPT_DELETE
     };
 
@@ -1659,6 +1661,75 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 			break;
 		}
 
+		case OPT_LOGGER: {
+			int         suboptIndex;
+
+			if ((objc < 3) || (objc > 4)) {
+				Tcl_WrongNumArgs (interp, 2, objv, "syslog|stderr|none|callback ?function?");
+				return TCL_ERROR;
+			}
+
+			static CONST char *subOptions[] = {
+				"syslog",
+				"stderr",
+				"none",
+				"callback",
+				NULL
+			};
+
+			enum subOptions {
+				SUBOPT_SYSLOG,
+				SUBOPT_STDERR,
+				SUBOPT_NONE,
+				SUBOPT_CALLBACK
+			};
+
+			// argument must be one of the subOptions defined above
+			if (Tcl_GetIndexFromObj (interp, objv[2], subOptions, "suboption",
+				TCL_EXACT, &suboptIndex) != TCL_OK) {
+				return TCL_ERROR;
+			}
+
+			if (suboptIndex == SUBOPT_CALLBACK) {
+				if (objc != 4) {
+					Tcl_WrongNumArgs (interp, 2, objv, "callback function");
+					return TCL_ERROR;
+
+				}
+			} else {
+				if (objc != 3) {
+					Tcl_WrongNumArgs (interp, 2, objv, Tcl_GetString (objv[3]));
+					return TCL_ERROR;
+				}
+			}
+
+			switch ((enum subOptions) suboptIndex) {
+				case SUBOPT_SYSLOG: {
+					// log to syslog by binding the kafka cpp-driver-supplied
+					// syslog-logging routine
+					rd_kafka_set_logger (rk, rd_kafka_log_syslog);
+					break;
+				}
+
+				case SUBOPT_STDERR: {
+					// log to stderr by binding the kafka cpp-driver-supplied
+					// stderr-logging routine
+					rd_kafka_set_logger (rk, rd_kafka_log_print);
+					break;
+				}
+
+				case SUBOPT_NONE: {
+					// suppress logging
+					rd_kafka_set_logger (rk, NULL);
+					break;
+				}
+
+				case SUBOPT_CALLBACK: {
+					break;
+				}
+			}
+			break;
+		}
 
 		case OPT_DELETE: {
 			if (objc != 2) {
@@ -1849,12 +1920,10 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 		"set_topic_conf",
         "set_delivery_report_callback",
         "set_error_callback",
-        "set_logger_callback",
 		"set_statistics_callback",
 		"set_socket_callback",
 		"get_configuration",
 		"get_topic_configuration",
-		"logging_callback",
 		"delete",
         NULL
     };
@@ -1866,12 +1935,10 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 		OPT_SET_TOPIC_CONF,
         OPT_SET_DELIVERY_REPORT_CALLBACK,
         OPT_SET_ERROR_CALLBACK,
-		OPT_SET_LOGGER_CALLBACK,
         OPT_SET_STATISTICS_CALLBACK,
 		OPT_SET_SOCKET_CALLBACK,
 		OPT_GET_CONFIGURATION,
 		OPT_GET_TOPIC_CONFIGURATION,
-		OPT_LOGGING_CALLBACK,
 		OPT_DELETE
     };
 
@@ -1938,10 +2005,6 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			break;
 		}
 
-		case OPT_SET_LOGGER_CALLBACK: {
-			break;
-		}
-
 		case OPT_SET_STATISTICS_CALLBACK: {
 			break;
 		}
@@ -1969,15 +2032,6 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 
 			char *arrayName = Tcl_GetString (objv[2]);
 			resultCode = kafkatcl_topic_conf_to_array (interp, arrayName, ko->topicConf);
-			break;
-		}
-
-		case OPT_LOGGING_CALLBACK: {
-			if (objc != 3) {
-				Tcl_WrongNumArgs (interp, 1, objv, "option arg");
-				return TCL_ERROR;
-			}
-
 			break;
 		}
 

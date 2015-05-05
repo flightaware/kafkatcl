@@ -110,10 +110,6 @@ Not yet implemented.
 
 Not yet implemented.
 
-* *$kafka* **set_logger_callback** 
-
-Not yet implemented.
-
 * *$kafka* **set_statistics_callback** 
 
 Not yet implemented.
@@ -149,11 +145,23 @@ If the handle was created with the **create_producer** method then a topic produ
 
 Set the log level to one of **emerg**, **alert**, **crit**, **err**, **warning**, **notice**, **info**, or **debug**.
 
-* $handle* **add_brokers** *brokerList*
+* *$handle* **add_brokers** *brokerList*
 
 Add a list of kafka brokers to the kafka handle object.
 
-* $handle* delete
+* *$handle* **logger** **syslog**
+
+Log kafka logger messages to the system log.
+
+* *$handle* **logger** **stderr**
+
+Log kafka logger messages to stderr.
+
+* *$handle* **logger** **callback** *callbackRoutine*
+
+Invoke the callback routine with logger messages.  Not yet implemented.
+
+* *$handle* delete
 
 Delete the handle object, destroying the command.
 
@@ -197,7 +205,7 @@ Stop consuming messages for the established topic and specified *partition*, pur
 
 Not implemented yet.
 
-* $topic* **delete**
+* *$topic* **delete**
 
 Delete the topic object.
 

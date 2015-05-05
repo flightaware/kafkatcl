@@ -65,3 +65,17 @@ create topics off of producer and consumer handles
 your message delivered callbacks go off of the configuration, not the handle or topic
 
 but you get the kafka handle as an argument in the callback
+
+
+----
+
+logging
+
+you can log to stderr or syslog or suppress logging or have a callback
+
+$handle logger syslog
+$handle logger stderr
+$handle logger none
+$handle logger callback function
+
+$handle log_level 
