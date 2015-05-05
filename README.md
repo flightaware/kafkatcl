@@ -88,6 +88,8 @@ Methods of kafka interface object
 
 * *$kafka* **config**
 
+Set a configuration property by specifying the property name and value.  Returns a Tcl error if it fails.
+
 * *$kafka* **create_producer** *cmdName*
 
 Create a kafkatcl producer handle object.
@@ -98,7 +100,7 @@ Create a kafkatcl consumer handle object.
 
 * *$kafka* **set_topic_conf** *key* *value*
 
-Set a single kafka topic configuration value by property name.
+Set a single kafka topic configuration property  by specifying the property name and value.  Returns a Tcl error if it fails.
 
 * *$kafka* **set_delivery_report_callback** 
 

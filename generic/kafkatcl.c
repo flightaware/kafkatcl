@@ -1679,10 +1679,40 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 /*
  *----------------------------------------------------------------------
  *
+ * kafkatcl_set_conf --
+ *
+ *    given an object client data and a topic config var and value,
+ *		set the topic configuration property
+ *
+ *    returns an error if rd_kafka_conf_set returns an error
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_set_conf (kafkatcl_objectClientData *ko, char *name, char *value) {
+	Tcl_Interp *interp = ko->interp;
+	char errStr[256];
+
+	rd_kafka_conf_res_t res = rd_kafka_conf_set (ko->conf, name, value, errStr, sizeof(errStr));
+
+	if (res != RD_KAFKA_CONF_OK) {
+		Tcl_SetObjResult (interp, Tcl_NewStringObj (errStr, -1));
+		return TCL_ERROR;
+	}
+	return TCL_OK;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
  * kafkatcl_set_topic_conf --
  *
  *    given an object client data and a topic config var and value,
- *		set the value
+ *		set the topic configuration property
  *
  *    returns an error if rd_kafka_topic_conf_set returns an error
  *
@@ -1857,6 +1887,14 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 
     switch ((enum options) optIndex) {
 		case OPT_CONFIG: {
+			if (objc != 4) {
+				Tcl_WrongNumArgs (interp, 2, objv, "name value");
+				return TCL_ERROR;
+			}
+
+			char *name = Tcl_GetString (objv[2]);
+			char *value = Tcl_GetString (objv[3]);
+			resultCode = kafkatcl_set_conf (ko, name, value);
 			break;
 		}
 
