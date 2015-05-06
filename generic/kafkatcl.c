@@ -928,9 +928,11 @@ void kafkatcl_statistics_callback (rd_kafka_t *rk, char *json, size_t json_len, 
 	Tcl_Obj *arg = Tcl_NewStringObj (json, json_len);
 
 	kafkatcl_invoke_callback_with_argument (interp, ko->statisticsCallbackObj, arg) ;
-
 }
 
+void
+kafkatcl_consume_callback (rd_kafka_message_t *rkmessage, void *opaque) {
+}
 /*
  *----------------------------------------------------------------------
  *
@@ -1015,6 +1017,43 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 
 			break;
 		}
+
+		case OPT_CONSUME_CALLBACK: {
+			int partition;
+			int timeoutMS;
+
+			if (objc != 5) {
+				Tcl_WrongNumArgs (interp, 2, objv, "partition timeout command");
+				return TCL_ERROR;
+			}
+
+			if (Tcl_GetIntFromObj (interp, objv[2], &partition) == TCL_ERROR) {
+				resultCode = TCL_ERROR;
+				break;
+			}
+
+			if (Tcl_GetIntFromObj (interp, objv[3], &timeoutMS) == TCL_ERROR) {
+				resultCode = TCL_ERROR;
+				break;
+			}
+
+			if (kt->consumeCallbackObj != NULL) {
+				Tcl_DecrRefCount (kt->consumeCallbackObj);
+			}
+
+			kt->consumeCallbackObj = objv[3];
+			Tcl_IncrRefCount (kt->consumeCallbackObj);
+
+			int count = rd_kafka_consume_callback (rkt, partition, timeoutMS, kafkatcl_consume_callback, kt);
+
+			if (count < 0) {
+				resultCode =  kafktcl_errno_to_tcl_error (interp);
+				break;
+			}
+
+			break;
+		}
+
 
 		case OPT_CONSUME_BATCH: {
 			int partition;
@@ -1153,10 +1192,6 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 				resultCode =  kafktcl_errno_to_tcl_error (interp);
 				break;
 			}
-			break;
-		}
-
-		case OPT_CONSUME_CALLBACK: {
 			break;
 		}
 
@@ -1381,7 +1416,7 @@ kafkatcl_createTopicObjectCommand (kafkatcl_handleClientData *kh, char *cmdName,
 	kt->kafka_topic_magic = KAFKA_TOPIC_MAGIC;
 	kt->rkt = rkt;
 	kt->kh = kh;
-	// rd_kafka_topic_conf_set_opaque 
+	kt->consumeCallbackObj = NULL;
 
 #define TOPIC_STRING_FORMAT "kafka_topic%lu"
 	// if cmdName is #auto, generate a unique name for the object
@@ -2213,6 +2248,7 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 			ko->interp = interp;
 			ko->conf = rd_kafka_conf_new ();
 			ko->topicConf = rd_kafka_topic_conf_new ();
+			rd_kafka_topic_conf_set_opaque (ko->topicConf, ko);
 
 			ko->loggingCallbackObj = NULL;
 			ko->deliveryReportMessageCallbackObj = NULL;
