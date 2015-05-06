@@ -47,6 +47,7 @@ typedef struct kafkatcl_handleClientData
 	kafkatcl_objectClientData *ko;
     Tcl_Command cmdToken;
 	rd_kafka_type_t kafkaType;
+	Tcl_ThreadId threadId;
 } kafkatcl_handleClientData;
 
 typedef struct kafkatcl_topicClientData
@@ -65,12 +66,83 @@ typedef struct kafkatcl_queueClientData
 	Tcl_Command cmdToken;
 } kafkatcl_queueClientData;
 
+typedef struct kafkatcl_deliveryReportEvent
+{
+    Tcl_Event event;
+    Tcl_Interp *interp;
+	rd_kafka_t *rk;
+	void *payload;
+	size_t len;
+	rd_kafka_resp_err_t err;
+} kafkatcl_deliveryReportEvent;
+
+typedef struct kafkatcl_deliveryReportMessageEvent
+{
+    Tcl_Event event;
+    Tcl_Interp *interp;
+	rd_kafka_t *rk;
+	const rd_kafka_message_t *rkmessage;
+} kafkatcl_deliveryReportMessageEvent;
+
+typedef struct kafkatcl_errorEvent
+{
+    Tcl_Event event;
+    Tcl_Interp *interp;
+	rd_kafka_t *rk;
+	int err;
+	const char *reason;
+} kafkatcl_errorEvent;
+
 
 typedef struct kafkatcl_loggingEvent
 {
     Tcl_Event event;
     Tcl_Interp *interp;
-	// NB some kind of event pointer
+	const rd_kafka_t *rk;
+	int level;
+	char *fac;
+	char *buf;
 } kafkatcl_loggingEvent;
+
+typedef struct kafkatcl_statsEvent
+{
+    Tcl_Event event;
+    Tcl_Interp *interp;
+	rd_kafka_t *rk;
+	char *json;
+	size_t json_len;
+} kafkatcl_statsEvent;
+
+typedef struct kafkatcl_genericEvent
+{
+    Tcl_Event event;
+    Tcl_Interp *interp;
+	rd_kafka_t *rk;
+	int kafkaEventType;
+	union {
+		struct {
+			void *payload;
+			size_t len;
+			rd_kafka_resp_err_t err;
+		} deliveryReport;
+
+		struct {
+			rd_kafka_message_t *rkmessage;
+		} deliveryReportMessage;
+
+		struct {
+			int err;
+			char *reason;
+		} errorEvent;
+
+		struct {
+			char *json;
+			size_t json_lev;
+		} statsEvent;
+
+	} eventSpecific;
+	char *json;
+	size_t json_len;
+} kafkatcl_genericEvent;
 
 /* vim: set ts=4 sw=4 sts=4 noet : */

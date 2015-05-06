@@ -9,6 +9,10 @@
 #include "kafkatcl.h"
 #include <assert.h>
 
+Tcl_Obj *kafkatcl_loggingCallbackObj = NULL;
+Tcl_ThreadId kafkatcl_loggingCallbackThreadId = NULL;
+Tcl_Interp *loggingInterp = NULL;
+
 /*
  *--------------------------------------------------------------
  *
@@ -752,15 +756,13 @@ kafkatcl_invoke_callback_with_argument (Tcl_Interp *interp, Tcl_Obj *callbackObj
 	return tclReturnCode;
 }
 
-#if 0
 /*
  *----------------------------------------------------------------------
  *
  * kafkatcl_logging_eventProc --
  *
- *    this routine is called by the Tcl event handler to process callbacks
- *    we have set up from logging callbacks we've gotten from Cassandra
- *    loop is
+ *    this routine is called by the Tcl event handler to process logging
+ *    callbacks we have gotten from the Kafka cpp-driver
  *
  * Results:
  *    returns 1 to say we handled the event and the dispatcher can delete it
@@ -771,51 +773,48 @@ int
 kafkatcl_logging_eventProc (Tcl_Event *tevPtr, int flags) {
 
 	// we got called with a Tcl_Event pointer but really it's a pointer to
-	// our kafkatcl_loggingEvent structure that has the Tcl_Event plus a pointer
-	// to kafkatcl_handleClientData, which is our key to the kindgdom.
+	// our kafkatcl_loggingEvent structure that has the Tcl_Event and
+	// some other stuff that we need.
 	// Go get that.
 
 	kafkatcl_loggingEvent *evPtr = (kafkatcl_loggingEvent *)tevPtr;
 	int tclReturnCode;
 	Tcl_Interp *interp = evPtr->interp;
-#define CASSTCL_LOG_CALLBACK_LISTCOUNT 12
+#define KAFKATCL_LOG_CALLBACK_LISTCOUNT 6
 
-	Tcl_Obj *listObjv[CASSTCL_LOG_CALLBACK_LISTCOUNT];
+	Tcl_Obj *listObjv[KAFKATCL_LOG_CALLBACK_LISTCOUNT];
 
 	// probably won't happen but if we get a logging callback and have
 	// no callback object, return 1 saying we handled it and let the
 	// dispatcher delete the message NB this isn't exactly cool
-	if (casstcl_loggingCallbackObj == NULL) {
+	if (kafkatcl_loggingCallbackObj == NULL) {
 		return 1;
 	}
 
 	// construct a list of key-value pairs representing the log message
 
-	listObjv[0] = Tcl_NewStringObj ("clock", -1);
-	listObjv[1] = Tcl_NewDoubleObj (evPtr->message.time_ms / 1000.0);
+	listObjv[0] = Tcl_NewStringObj ("level", -1);
+	listObjv[1] = Tcl_NewIntObj (evPtr->level);
 
-	listObjv[2] = Tcl_NewStringObj ("severity", -1);
-	listObjv[3] = Tcl_NewStringObj (casstcl_cass_log_level_to_string (evPtr->message.severity), -1);
+	listObjv[2] = Tcl_NewStringObj ("facility", -1);
+	listObjv[3] = Tcl_NewStringObj (evPtr->fac, -1);
 
-	listObjv[4] = Tcl_NewStringObj ("file", -1);
-	listObjv[5] = Tcl_NewStringObj (evPtr->message.file, -1);
+	listObjv[4] = Tcl_NewStringObj ("message", -1);
+	listObjv[5] = Tcl_NewStringObj (evPtr->buf, -1);
 
-	listObjv[6] = Tcl_NewStringObj ("line", -1);
-	listObjv[7] = Tcl_NewIntObj (evPtr->message.line);
 
-	listObjv[8] = Tcl_NewStringObj ("function", -1);
-	listObjv[9] = Tcl_NewStringObj (evPtr->message.function, -1);
+	Tcl_Obj *listObj = Tcl_NewListObj (KAFKATCL_LOG_CALLBACK_LISTCOUNT, listObjv);
 
-	listObjv[10] = Tcl_NewStringObj ("message", -1);
-	int messageLength = strnlen (evPtr->message.message, CASS_LOG_MAX_MESSAGE_SIZE);
-	listObjv[11] = Tcl_NewStringObj (evPtr->message.message, messageLength);
+	ckfree (evPtr->fac);
+	evPtr->fac = NULL;
 
-	Tcl_Obj *listObj = Tcl_NewListObj (CASSTCL_LOG_CALLBACK_LISTCOUNT, listObjv);
+	ckfree (evPtr->buf);
+	evPtr->buf = NULL;
 
 	// even if this fails we still want the event taken off the queue
 	// this function will do the background error thing if there is a tcl
 	// error running the callback
-	tclReturnCode = casstcl_invoke_callback_with_argument (interp, casstcl_loggingCallbackObj, listObj);
+	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, kafkatcl_loggingCallbackObj, listObj);
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
 	// it and don't want it removed from the queue
 	return 1;
@@ -836,17 +835,39 @@ kafkatcl_logging_eventProc (Tcl_Event *tevPtr, int flags) {
  *
  *----------------------------------------------------------------------
  */
-void kafkatcl_logging_callback (const CassLogMessage *message, void *data) {
+void kafkatcl_logging_callback (const rd_kafka_t *rk, int level, const char *fac, const char *buf) {
 	kafkatcl_loggingEvent *evPtr;
 
-	Tcl_Interp *interp = data;
+	Tcl_Interp *interp = loggingInterp;
+
 	evPtr = ckalloc (sizeof (kafkatcl_loggingEvent));
 	evPtr->event.proc = kafkatcl_logging_eventProc;
 	evPtr->interp = interp;
-	evPtr->message = *message; /* structure copy */
+
+	evPtr->level = level;
+
+	int len = strlen (fac);
+	evPtr->fac = ckalloc (len + 1);
+	strncpy (evPtr->fac, fac, len);
+
+	len = strlen (buf);
+	evPtr->buf = ckalloc (len + 1);
+	strncpy (evPtr->buf, buf, len);
+
 	Tcl_ThreadQueueEvent(kafkatcl_loggingCallbackThreadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
 }
-#endif
+
+void kafkatcl_delivery_report_callback (rd_kafka_t *rk, void *payload, size_t len, rd_kafka_resp_err_t err, void *opaque, void *msgOpaque) {
+}
+
+void kafkatcl_delivery_report_message_callback (rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void *opaque) {
+}
+
+void kafkatcl_error_callback (rd_kafka_t *rk, int err, const char *reason, void *opaque) {
+}
+
+void kafkatcl_statistics_callback (rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
+}
 
 /*
  *----------------------------------------------------------------------
@@ -1441,90 +1462,23 @@ kafkatcl_EventCheckProc (ClientData data, int flags)
 {
 }
 
-#if 0
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_future_eventProc --
- *
- *    this routine is called by the Tcl event handler to process callbacks
- *    we have set up from future (result objects) we've gotten from Cassandra
- *
- * Results:
- *    The callback routine set when the async method was invoked is
- *    invoked in the Tcl interpreter with one argument, that being the
- *    future object that was also created when the async method was
- *    invoked
- *
- *    If an uncaught error occurs when evaluating the command, a Tcl
- *    background exception is invoked
- *
- *----------------------------------------------------------------------
- */
-int
-kafkatcl_future_eventProc (Tcl_Event *tevPtr, int flags) {
 
-	// we got called with a Tcl_Event pointer but really it's a pointer to
-	// our casstcl_futureEvent structure that has the Tcl_Event plus a pointer
-	// to casstcl_futureClientData, which is our key to the kindgdom.
-	// Go get that.
-
-	casstcl_futureEvent *evPtr = (casstcl_futureEvent *)tevPtr;
-	casstcl_futureClientData *fcd = evPtr->fcd;
-	int tclReturnCode;
-	Tcl_Interp *interp = fcd->ct->interp;
-
-	Tcl_Obj *futureObj;
-
-	// get the name of the future object this callback is related to
-	// into an object
-	futureObj = Tcl_NewObj();
-	Tcl_GetCommandFullName(interp, fcd->cmdToken, futureObj);
-
-	// eval the command.  it should be the callback we were told as the
-	// first argument and the future object we created, like future0, as
-	// the second.
-
-	tclReturnCode = casstcl_invoke_callback_with_argument (interp, fcd->callbackObj, futureObj);
-
-	// tell the dispatcher we handled it.  0 would mean we didn't deal with
-	// it and don't want it removed from the queue
-	return 1;
+void kafkatcl_deliveryReportCallback (rd_kafka_t *rk, void *payload, size_t len, rd_kafka_resp_err_t err, void *opaque, void *msgOpaque) {
 }
 
-/*
- *----------------------------------------------------------------------
- *
- * casstcl_future_callback --
- *
- *    this routine is called by the cassandra cpp-driver as a callback
- *    when a callback was set up by us using cass_future_set_callback
- *
- *    this occurs when the request has completed or errored
- *
- *    this generates a Tcl event and queues it to the thread that issued
- *    the command to do an asynchronous cassandra command with callback
- *    in the first place.
- *
- *    when Tcl processes the event, casstcl_future_eventProc will be invoked.
- *    that guy will do a Tcl eval to invoke the callback
- *
- * Results:
- *    stuff
- *
- *----------------------------------------------------------------------
- */
-void casstcl_future_callback (CassFuture* future, void* data) {
-	casstcl_futureEvent *evPtr;
-
-	casstcl_futureClientData *fcd = data;
-	evPtr = ckalloc (sizeof (casstcl_futureEvent));
-	evPtr->event.proc = casstcl_future_eventProc;
-	evPtr->fcd = fcd;
-	int queueEnd = (fcd->flags & CASSTCL_FUTURE_QUEUE_HEAD_FLAG) ? TCL_QUEUE_HEAD : TCL_QUEUE_TAIL;
-	Tcl_ThreadQueueEvent(fcd->ct->threadId, (Tcl_Event *)evPtr, queueEnd);
+void kafkatcl_deliveryReportMessageCallback (rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void *opaque) {
 }
-#endif
+
+void kafkatcl_errorCallback (rd_kafka_t *rk, int err, const char *reason, void *opaque) {
+}
+
+void kafkatcl_loggingCallback (rd_kafka_t *rk, int level, const char *fac, const char *buf) {
+}
+
+int kafkatcl_statsCallback (rd_kafka_t *rk, char  *json, size_t json_len, void *opaque) {
+	// return 0 == free the json pointer immediately, else return 1
+	return 0;
+}
 
 /*
  *----------------------------------------------------------------------
@@ -1586,7 +1540,6 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
         "new_topic",
 		"log_level",
 		"add_brokers",
-		"logger",
         "delete",
         NULL
     };
@@ -1596,7 +1549,6 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 		OPT_NEW_TOPIC,
 		OPT_LOG_LEVEL,
 		OPT_ADD_BROKERS,
-		OPT_LOGGER,
 		OPT_DELETE
     };
 
@@ -1658,76 +1610,6 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 
 			char *brokers = Tcl_GetString (objv[2]);
 			resultCode = kafkatcl_add_brokers (kh, brokers);
-			break;
-		}
-
-		case OPT_LOGGER: {
-			int         suboptIndex;
-
-			if ((objc < 3) || (objc > 4)) {
-				Tcl_WrongNumArgs (interp, 2, objv, "syslog|stderr|none|callback ?function?");
-				return TCL_ERROR;
-			}
-
-			static CONST char *subOptions[] = {
-				"syslog",
-				"stderr",
-				"none",
-				"callback",
-				NULL
-			};
-
-			enum subOptions {
-				SUBOPT_SYSLOG,
-				SUBOPT_STDERR,
-				SUBOPT_NONE,
-				SUBOPT_CALLBACK
-			};
-
-			// argument must be one of the subOptions defined above
-			if (Tcl_GetIndexFromObj (interp, objv[2], subOptions, "suboption",
-				TCL_EXACT, &suboptIndex) != TCL_OK) {
-				return TCL_ERROR;
-			}
-
-			if (suboptIndex == SUBOPT_CALLBACK) {
-				if (objc != 4) {
-					Tcl_WrongNumArgs (interp, 2, objv, "callback function");
-					return TCL_ERROR;
-
-				}
-			} else {
-				if (objc != 3) {
-					Tcl_WrongNumArgs (interp, 2, objv, Tcl_GetString (objv[3]));
-					return TCL_ERROR;
-				}
-			}
-
-			switch ((enum subOptions) suboptIndex) {
-				case SUBOPT_SYSLOG: {
-					// log to syslog by binding the kafka cpp-driver-supplied
-					// syslog-logging routine
-					rd_kafka_set_logger (rk, rd_kafka_log_syslog);
-					break;
-				}
-
-				case SUBOPT_STDERR: {
-					// log to stderr by binding the kafka cpp-driver-supplied
-					// stderr-logging routine
-					rd_kafka_set_logger (rk, rd_kafka_log_print);
-					break;
-				}
-
-				case SUBOPT_NONE: {
-					// suppress logging
-					rd_kafka_set_logger (rk, NULL);
-					break;
-				}
-
-				case SUBOPT_CALLBACK: {
-					break;
-				}
-			}
 			break;
 		}
 
@@ -1871,6 +1753,9 @@ kafkatcl_createHandleObjectCommand (kafkatcl_objectClientData *ko, char *cmdName
 	kh->rk = rk;
 	kh->ko = ko;
 	kh->kafkaType = kafkaType;
+	kh->threadId = Tcl_GetCurrentThread ();
+
+	Tcl_CreateEventSource (kafkatcl_EventSetupProc, kafkatcl_EventCheckProc, (ClientData) kh);
 
 #define HANDLE_STRING_FORMAT "kafka_handle%lu"
 	// if cmdName is #auto, generate a unique name for the object
@@ -1919,11 +1804,13 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
         "create_consumer",
 		"set_topic_conf",
         "set_delivery_report_callback",
+        "set_delivery_report_message_callback",
         "set_error_callback",
 		"set_statistics_callback",
 		"set_socket_callback",
 		"get_configuration",
 		"get_topic_configuration",
+		"logger",
 		"delete",
         NULL
     };
@@ -1934,11 +1821,13 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
         OPT_CREATE_CONSUMER,
 		OPT_SET_TOPIC_CONF,
         OPT_SET_DELIVERY_REPORT_CALLBACK,
+        OPT_SET_DELIVERY_REPORT_MESSAGE_CALLBACK,
         OPT_SET_ERROR_CALLBACK,
         OPT_SET_STATISTICS_CALLBACK,
 		OPT_SET_SOCKET_CALLBACK,
 		OPT_GET_CONFIGURATION,
 		OPT_GET_TOPIC_CONFIGURATION,
+		OPT_LOGGER,
 		OPT_DELETE
     };
 
@@ -1997,15 +1886,23 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			break;
 		}
 
+		case OPT_SET_DELIVERY_REPORT_MESSAGE_CALLBACK: {
+			rd_kafka_conf_set_dr_msg_cb (ko->conf, kafkatcl_deliveryReportMessageCallback);
+			break;
+		}
+
 		case OPT_SET_DELIVERY_REPORT_CALLBACK: {
+			rd_kafka_conf_set_dr_cb (ko->conf, kafkatcl_deliveryReportCallback);
 			break;
 		}
 
 		case OPT_SET_ERROR_CALLBACK: {
+			rd_kafka_conf_set_error_cb (ko->conf, kafkatcl_errorCallback);
 			break;
 		}
 
 		case OPT_SET_STATISTICS_CALLBACK: {
+			rd_kafka_conf_set_stats_cb (ko->conf, kafkatcl_statsCallback);
 			break;
 		}
 
@@ -2035,7 +1932,87 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			break;
 		}
 
+		case OPT_LOGGER: {
+			int         suboptIndex;
 
+			if ((objc < 3) || (objc > 4)) {
+				Tcl_WrongNumArgs (interp, 2, objv, "syslog|stderr|none|callback ?function?");
+				return TCL_ERROR;
+			}
+
+			static CONST char *subOptions[] = {
+				"syslog",
+				"stderr",
+				"none",
+				"callback",
+				NULL
+			};
+
+			enum subOptions {
+				SUBOPT_SYSLOG,
+				SUBOPT_STDERR,
+				SUBOPT_NONE,
+				SUBOPT_CALLBACK
+			};
+
+			// argument must be one of the subOptions defined above
+			if (Tcl_GetIndexFromObj (interp, objv[2], subOptions, "suboption",
+				TCL_EXACT, &suboptIndex) != TCL_OK) {
+				return TCL_ERROR;
+			}
+
+			if (suboptIndex == SUBOPT_CALLBACK) {
+				if (objc != 4) {
+					Tcl_WrongNumArgs (interp, 2, objv, "callback function");
+					return TCL_ERROR;
+
+				}
+			} else {
+				if (objc != 3) {
+					Tcl_WrongNumArgs (interp, 2, objv, Tcl_GetString (objv[3]));
+					return TCL_ERROR;
+				}
+			}
+
+			switch ((enum subOptions) suboptIndex) {
+				case SUBOPT_SYSLOG: {
+					// log to syslog by binding the kafka cpp-driver-supplied
+					// syslog-logging routine
+					rd_kafka_conf_set_log_cb (ko->conf, rd_kafka_log_syslog);
+					break;
+				}
+
+				case SUBOPT_STDERR: {
+					// log to stderr by binding the kafka cpp-driver-supplied
+					// stderr-logging routine
+					rd_kafka_conf_set_log_cb (ko->conf, rd_kafka_log_print);
+					break;
+				}
+
+				case SUBOPT_NONE: {
+					// suppress logging
+					rd_kafka_conf_set_log_cb (ko->conf, NULL);
+					break;
+				}
+
+				case SUBOPT_CALLBACK: {
+					kafkatcl_loggingCallbackThreadId = Tcl_GetCurrentThread ();
+					loggingInterp = interp;
+					kafkatcl_loggingCallbackObj = NULL;
+
+					if (kafkatcl_loggingCallbackObj != NULL) {
+						Tcl_DecrRefCount (kafkatcl_loggingCallbackObj);
+					}
+
+					kafkatcl_loggingCallbackObj = objv[3];
+					Tcl_IncrRefCount (kafkatcl_loggingCallbackObj);
+
+					rd_kafka_conf_set_log_cb (ko->conf, kafkatcl_logging_callback);
+					break;
+				}
+			}
+			break;
+		}
 
 		case OPT_DELETE: {
 			if (objc != 2) {
@@ -2089,7 +2066,7 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 
     enum options {
         OPT_CREATE,
-		OPT_VERSION
+		OPT_VERSION,
     };
 
     // basic command line processing
@@ -2130,7 +2107,9 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 
 			ko->threadId = Tcl_GetCurrentThread();
 
-			Tcl_CreateEventSource (kafkatcl_EventSetupProc, kafkatcl_EventCheckProc, NULL);
+			// set the kafka conf opaque pointer so we can find
+			// the corresponding kafkatcl_objectClientData structure
+			rd_kafka_conf_set_opaque (ko->conf, ko);
 
 			cmdName = Tcl_GetString (objv[2]);
 
@@ -2156,6 +2135,7 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 			}
 			break;
 		}
+
 
 	}
 
