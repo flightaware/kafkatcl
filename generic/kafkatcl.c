@@ -1871,6 +1871,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 		"log_level",
 		"add_brokers",
 		"create_queue",
+		"output_queue_length",
         "delete",
         NULL
     };
@@ -1881,6 +1882,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 		OPT_LOG_LEVEL,
 		OPT_ADD_BROKERS,
         OPT_CREATE_QUEUE,
+        OPT_OUTPUT_QUEUE_LENGTH,
 		OPT_DELETE
     };
 
@@ -1982,6 +1984,16 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 			}
 
 			break;
+		}
+
+		case OPT_OUTPUT_QUEUE_LENGTH: {
+			if (objc != 2) {
+				Tcl_WrongNumArgs (interp, 2, objv, "");
+				return TCL_ERROR;
+			}
+
+			Tcl_SetObjResult (interp, Tcl_NewIntObj (rd_kafka_outq_len (rk)));
+
 		}
 
 		case OPT_DELETE: {

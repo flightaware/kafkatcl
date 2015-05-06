@@ -169,6 +169,10 @@ Add a list of kafka brokers to the kafka handle object.
 
 Create a queue object named *command*.  If *command* is **#auto** then creates a unique command name such as *kafka_queue0*.
 
+* *$handle* **output_queue_length**
+
+Return the current output queue length, i.e. the messages waiting to be sent to, or acknowledged by, the broker.
+
 * *$handle* delete
 
 Delete the handle object, destroying the command.
