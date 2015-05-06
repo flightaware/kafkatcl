@@ -102,21 +102,23 @@ Create a kafkatcl consumer handle object.
 
 Set a single kafka topic configuration property  by specifying the property name and value.  Returns a Tcl error if it fails.
 
-* *$kafka* **set_delivery_report_callback** 
+* *$kafka* **set_delivery_report_callback** *command*
 
-Not yet implemented.
+Invoke *command* when kafka cpp-driver delivery report callbacks are received.
 
-* *$kafka* **set_error_callback** 
+* *$kafka* **set_error_callback** *command*
 
-Not yet implemented.
+Invoke *command* when kafka cpp-driver error callbacks are received.
 
-* *$kafka* **set_statistics_callback** 
+* *$kafka* **set_statistics_callback** *command*
 
-Not yet implemented.
+Invoke *command* when kafka cpp-driver statistics callbacks are received.
+
+The command will be invoked with one argument, which is the JSON provided by the stats callback.
 
 * *$kafka* **set_socket_callback** 
 
-Not yet implemented.
+Not yet implemented and may not be implemented.
 
 * *$kafka* **get_configuration** *array*
 
@@ -125,8 +127,22 @@ Store the kafka object's configuration properties into the specified array.
 * *$kafka* **get_topic_configuration**  *array*
 
 Store the kafka object's topic configuration properties into the specified array.
+* *$handle* **logger** **syslog**
 
-* *$kafka* **logging_callback** 
+Log kafka logger messages to the system log.
+
+* *$handle* **logger** **stderr**
+
+Log kafka logger messages to stderr.
+
+* *$handle* **logger** **callback** *command*
+
+Invoke the callback routine *command* when kafka logger messages are received.
+
+After specifying this, when logging messages are received, *command* will be invoked with one argument containing a list of key-value pairs containing "level", the log level as an integer (this may change), "facility", the facility as a string, and "message" followed by the log message.
+
+Logging callbacks may only be directed to one of the syslog, stderr or the callback command.  Changing to a new one ends the use of the previous one.
+
 
 Methods of kafka handle object
 ---
@@ -149,17 +165,9 @@ Set the log level to one of **emerg**, **alert**, **crit**, **err**, **warning**
 
 Add a list of kafka brokers to the kafka handle object.
 
-* *$handle* **logger** **syslog**
+* *$handle* **create_queue** *command*
 
-Log kafka logger messages to the system log.
-
-* *$handle* **logger** **stderr**
-
-Log kafka logger messages to stderr.
-
-* *$handle* **logger** **callback** *callbackRoutine*
-
-Invoke the callback routine with logger messages.  Not yet implemented.
+Create a queue object named *command*.  If *command* is **#auto** then creates a unique command name such as *kafka_queue0*.
 
 * *$handle* delete
 
