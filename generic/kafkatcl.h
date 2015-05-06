@@ -117,36 +117,4 @@ typedef struct kafkatcl_statsEvent
 	size_t json_len;
 } kafkatcl_statsEvent;
 
-typedef struct kafkatcl_genericEvent
-{
-    Tcl_Event event;
-    Tcl_Interp *interp;
-	rd_kafka_t *rk;
-	int kafkaEventType;
-	union {
-		struct {
-			void *payload;
-			size_t len;
-			rd_kafka_resp_err_t err;
-		} deliveryReport;
-
-		struct {
-			rd_kafka_message_t *rkmessage;
-		} deliveryReportMessage;
-
-		struct {
-			int err;
-			char *reason;
-		} errorEvent;
-
-		struct {
-			char *json;
-			size_t json_lev;
-		} statsEvent;
-
-	} eventSpecific;
-	char *json;
-	size_t json_len;
-} kafkatcl_genericEvent;
-
 /* vim: set ts=4 sw=4 sts=4 noet : */
