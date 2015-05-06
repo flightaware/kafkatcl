@@ -114,10 +114,10 @@ typedef struct kafkatcl_loggingEvent
 typedef struct kafkatcl_statsEvent
 {
     Tcl_Event event;
-    Tcl_Interp *interp;
+	kafkatcl_objectClientData *ko;
 	rd_kafka_t *rk;
 	char *json;
-	size_t json_len;
+	size_t jsonLen;
 } kafkatcl_statsEvent;
 
 /* vim: set ts=4 sw=4 sts=4 noet : */
