@@ -37,6 +37,10 @@ typedef struct kafkatcl_objectClientData
     Tcl_Command cmdToken;
 	Tcl_ThreadId threadId;
 	Tcl_Obj *loggingCallbackObj;
+	Tcl_Obj *deliveryReportMessageCallbackObj;
+	Tcl_Obj *deliveryReportCallbackObj;
+	Tcl_Obj *errorCallbackObj;
+	Tcl_Obj *statisticsCallbackObj;
 } kafkatcl_objectClientData;
 
 typedef struct kafkatcl_handleClientData

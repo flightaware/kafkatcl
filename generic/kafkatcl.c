@@ -857,16 +857,78 @@ void kafkatcl_logging_callback (const rd_kafka_t *rk, int level, const char *fac
 	Tcl_ThreadQueueEvent(kafkatcl_loggingCallbackThreadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_delivery_report_callback --
+ *
+ *    this routine is called by the kafka cpp-driver as a callback
+ *    when a delivery report has been received and rd_kafka_set_dr_cb
+ *    has been done to register this callback
+ *
+ * Results:
+ *    an event is queued to the thread that set up the callback
+ *
+ *----------------------------------------------------------------------
+ */
 void kafkatcl_delivery_report_callback (rd_kafka_t *rk, void *payload, size_t len, rd_kafka_resp_err_t err, void *opaque, void *msgOpaque) {
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_delivery_report_message_callback --
+ *
+ *    this routine is called by the kafka cpp-driver as a callback
+ *    when a delivery report has been received and rd_kafka_set_dr_cb
+ *    has been done to register this callback
+ *
+ * Results:
+ *    an event is queued to the thread that set up the callback
+ *
+ *----------------------------------------------------------------------
+ */
 void kafkatcl_delivery_report_message_callback (rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void *opaque) {
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_error_callback --
+ *
+ *    this routine is called by the kafka cpp-driver as a callback
+ *    when a delivery report has been received and rd_kafka_set_error_cb
+ *    has been done to register this callback
+ *
+ * Results:
+ *    an event is queued to the thread that set up the callback
+ *
+ *----------------------------------------------------------------------
+ */
 void kafkatcl_error_callback (rd_kafka_t *rk, int err, const char *reason, void *opaque) {
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_statistics_callback --
+ *
+ *    this routine is called by the kafka cpp-driver as a callback
+ *    when a delivery report has been received and rd_kafka_set_stats_cb
+ *    has been done to register this callback
+ *
+ * Results:
+ *    an event is queued to the thread that set up the callback
+ *
+ *----------------------------------------------------------------------
+ */
 void kafkatcl_statistics_callback (rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
+    kafkatcl_objectClientData *ko = opaque;
+	Tcl_Interp *interp = ko->interp;
+	Tcl_Obj *arg = Tcl_NewStringObj (json, json_len);
+
+	kafkatcl_invoke_callback_with_argument (interp, ko->statisticsCallbackObj, arg) ;
+
 }
 
 /*
@@ -1887,21 +1949,69 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 		}
 
 		case OPT_SET_DELIVERY_REPORT_MESSAGE_CALLBACK: {
+			if (objc != 3) {
+				Tcl_WrongNumArgs (interp, 2, objv, "command");
+				return TCL_ERROR;
+			}
+
+			if (ko->deliveryReportMessageCallbackObj != NULL) {
+				Tcl_DecrRefCount (ko->deliveryReportMessageCallbackObj);
+			}
+
+			ko->deliveryReportMessageCallbackObj = objv[3];
+			Tcl_IncrRefCount (ko->deliveryReportMessageCallbackObj);
+
 			rd_kafka_conf_set_dr_msg_cb (ko->conf, kafkatcl_deliveryReportMessageCallback);
 			break;
 		}
 
 		case OPT_SET_DELIVERY_REPORT_CALLBACK: {
+			if (objc != 3) {
+				Tcl_WrongNumArgs (interp, 2, objv, "command");
+				return TCL_ERROR;
+			}
+
+			if (ko->deliveryReportCallbackObj != NULL) {
+				Tcl_DecrRefCount (ko->deliveryReportCallbackObj);
+			}
+
+			ko->deliveryReportCallbackObj = objv[3];
+			Tcl_IncrRefCount (ko->deliveryReportCallbackObj);
+
 			rd_kafka_conf_set_dr_cb (ko->conf, kafkatcl_deliveryReportCallback);
 			break;
 		}
 
 		case OPT_SET_ERROR_CALLBACK: {
+			if (objc != 3) {
+				Tcl_WrongNumArgs (interp, 2, objv, "command");
+				return TCL_ERROR;
+			}
+
+			if (ko->errorCallbackObj != NULL) {
+				Tcl_DecrRefCount (ko->errorCallbackObj);
+			}
+
+			ko->errorCallbackObj = objv[3];
+			Tcl_IncrRefCount (ko->errorCallbackObj);
+
 			rd_kafka_conf_set_error_cb (ko->conf, kafkatcl_errorCallback);
 			break;
 		}
 
 		case OPT_SET_STATISTICS_CALLBACK: {
+			if (objc != 3) {
+				Tcl_WrongNumArgs (interp, 2, objv, "command");
+				return TCL_ERROR;
+			}
+
+			if (ko->statisticsCallbackObj != NULL) {
+				Tcl_DecrRefCount (ko->statisticsCallbackObj);
+			}
+
+			ko->statisticsCallbackObj = objv[3];
+			Tcl_IncrRefCount (ko->statisticsCallbackObj);
+
 			rd_kafka_conf_set_stats_cb (ko->conf, kafkatcl_statsCallback);
 			break;
 		}
@@ -1998,7 +2108,6 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 				case SUBOPT_CALLBACK: {
 					kafkatcl_loggingCallbackThreadId = Tcl_GetCurrentThread ();
 					loggingInterp = interp;
-					kafkatcl_loggingCallbackObj = NULL;
 
 					if (kafkatcl_loggingCallbackObj != NULL) {
 						Tcl_DecrRefCount (kafkatcl_loggingCallbackObj);
@@ -2104,6 +2213,12 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 			ko->interp = interp;
 			ko->conf = rd_kafka_conf_new ();
 			ko->topicConf = rd_kafka_topic_conf_new ();
+
+			ko->loggingCallbackObj = NULL;
+			ko->deliveryReportMessageCallbackObj = NULL;
+			ko->deliveryReportCallbackObj = NULL;
+			ko->errorCallbackObj = NULL;
+			ko->statisticsCallbackObj = NULL;
 
 			ko->threadId = Tcl_GetCurrentThread();
 
