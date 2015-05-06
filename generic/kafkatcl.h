@@ -94,7 +94,7 @@ typedef struct kafkatcl_deliveryReportMessageEvent
 typedef struct kafkatcl_errorEvent
 {
     Tcl_Event event;
-    Tcl_Interp *interp;
+	kafkatcl_objectClientData *ko;
 	rd_kafka_t *rk;
 	int err;
 	const char *reason;
