@@ -61,6 +61,11 @@ kafkatcl_topicObjectDelete (ClientData clientData)
     assert (kt->kafka_topic_magic == KAFKA_TOPIC_MAGIC);
 
 	rd_kafka_topic_destroy (kt->rkt);
+
+	if (kt->consumeCallbackObj != NULL) {
+		Tcl_DecrRefCount (kt->consumeCallbackObj);
+	}
+
     ckfree((char *)clientData);
 }
 
@@ -114,6 +119,11 @@ kafkatcl_queueObjectDelete (ClientData clientData)
     assert (kq->kafka_queue_magic == KAFKA_QUEUE_MAGIC);
 
 	rd_kafka_queue_destroy (kq->rkqu);
+
+	if (kq->consumeCallbackObj != NULL) {
+		Tcl_DecrRefCount (kq->consumeCallbackObj);
+	}
+
     ckfree((char *)clientData);
 }
 
@@ -682,12 +692,12 @@ kafkatcl_queue_command_to_queueClientData (Tcl_Interp *interp, char *queueComman
 		return NULL;
 	}
 
-	kafkatcl_queueClientData *kh = (kafkatcl_queueClientData *)queueCmdInfo.objClientData;
-    if (kh->kafka_queue_magic != KAFKA_QUEUE_MAGIC) {
+	kafkatcl_queueClientData *kq = (kafkatcl_queueClientData *)queueCmdInfo.objClientData;
+    if (kq->kafka_queue_magic != KAFKA_QUEUE_MAGIC) {
 		return NULL;
 	}
 
-	return kh;
+	return kq;
 }
 
 /*
@@ -1048,7 +1058,8 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 
 			if (count < 0) {
 				resultCode =  kafktcl_errno_to_tcl_error (interp);
-				break;
+			} else {
+				Tcl_SetObjResult (interp, Tcl_NewIntObj (count));
 			}
 
 			break;
@@ -1102,7 +1113,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 				if (resultCode == TCL_ERROR) {
 					break;
 				}
-				
+
 				if (resultCode == TCL_BREAK) {
 					resultCode = TCL_OK;
 					break;
@@ -1409,7 +1420,7 @@ kafkatcl_createTopicObjectCommand (kafkatcl_handleClientData *kh, char *cmdName,
 	}
 
 
-	// allocate one of our kafka topic client data objects for Tcl and 
+	// allocate one of our kafka topic client data objects for Tcl and
 	// configure it
 	kafkatcl_topicClientData *kt = (kafkatcl_topicClientData *)ckalloc (sizeof (kafkatcl_topicClientData));
 
@@ -1457,6 +1468,7 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 {
     int         optIndex;
 	kafkatcl_queueClientData *kq = (kafkatcl_queueClientData *)cData;
+	rd_kafka_queue_t *rkqu = kq->rkqu;
 	int resultCode = TCL_OK;
 
     static CONST char *options[] = {
@@ -1468,9 +1480,9 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
     };
 
     enum options {
-		OPT_CONSUME,
-		OPT_CONSUME_BATCH,
-		OPT_CONSUME_CALLBACK,
+		OPT_CONSUME_QUEUE,
+		OPT_CONSUME_QUEUE_BATCH,
+		OPT_CONSUME_QUEUE_CALLBACK,
 		OPT_DELETE
     };
 
@@ -1485,15 +1497,112 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
     }
 
     switch ((enum options) optIndex) {
-		case OPT_CONSUME: {
+		case OPT_CONSUME_QUEUE: {
+			int timeoutMS;
+
+			if (objc != 4) {
+				Tcl_WrongNumArgs (interp, 2, objv, "timeout array");
+				return TCL_ERROR;
+			}
+
+			if (Tcl_GetIntFromObj (interp, objv[2], &timeoutMS) == TCL_ERROR) {
+				resultCode = TCL_ERROR;
+				break;
+			}
+
+			char *arrayName = Tcl_GetString (objv[3]);
+
+			rd_kafka_message_t *rdm = rd_kafka_consume_queue (rkqu, timeoutMS);
+
+			if (rdm == NULL) {
+				resultCode =  kafktcl_errno_to_tcl_error (interp);
+				break;
+			}
+
+			resultCode = kafkatcl_message_to_tcl (interp, arrayName, rdm);
+
 			break;
 		}
 
-		case OPT_CONSUME_BATCH: {
+		case OPT_CONSUME_QUEUE_BATCH: {
+			int timeoutMS;
+			int count;
+
+			if (objc != 6) {
+				Tcl_WrongNumArgs (interp, 2, objv, "timeout count array code");
+				return TCL_ERROR;
+			}
+
+			if (Tcl_GetIntFromObj (interp, objv[2], &timeoutMS) == TCL_ERROR) {
+				resultCode = TCL_ERROR;
+				break;
+			}
+
+			if (Tcl_GetIntFromObj (interp, objv[3], &count) == TCL_ERROR) {
+				resultCode = TCL_ERROR;
+				break;
+			}
+
+			char *arrayName = Tcl_GetString (objv[4]);
+
+			Tcl_Obj *codeObj = objv[5];
+
+			rd_kafka_message_t *rkMessages;
+
+			int gotCount = rd_kafka_consume_batch_queue (rkqu, timeoutMS, &rkMessages, count);
+
+			int i;
+
+			for (i = 0; i < gotCount; i++) {
+				resultCode = kafkatcl_message_to_tcl (interp, arrayName, &rkMessages[i]);
+
+				if (resultCode == TCL_ERROR) {
+					break;
+				}
+
+				resultCode = Tcl_EvalObjEx (interp, codeObj,  0);
+
+				if (resultCode == TCL_ERROR) {
+					break;
+				}
+
+				if (resultCode == TCL_BREAK) {
+					resultCode = TCL_OK;
+					break;
+				}
+			}
+
 			break;
 		}
 
-		case OPT_CONSUME_CALLBACK: {
+		case OPT_CONSUME_QUEUE_CALLBACK: {
+			int timeoutMS;
+
+			if (objc != 4) {
+				Tcl_WrongNumArgs (interp, 2, objv, "timeout command");
+				return TCL_ERROR;
+			}
+
+			if (Tcl_GetIntFromObj (interp, objv[2], &timeoutMS) == TCL_ERROR) {
+				resultCode = TCL_ERROR;
+				break;
+			}
+
+			if (kq->consumeCallbackObj != NULL) {
+				Tcl_DecrRefCount (kq->consumeCallbackObj);
+			}
+
+			kq->consumeCallbackObj = objv[3];
+			Tcl_IncrRefCount (kq->consumeCallbackObj);
+
+			int count = rd_kafka_consume_callback_queue (kq->rkqu, timeoutMS, kafkatcl_consume_callback, kq);
+
+			if (count < 0) {
+				resultCode =  kafktcl_errno_to_tcl_error (interp);
+			} else {
+				Tcl_SetObjResult (interp, Tcl_NewIntObj (count));
+			}
+
 			break;
 		}
 
@@ -1607,7 +1716,7 @@ kafkatcl_metadata_to_tcl (Tcl_Interp *interp, rd_kafka_t *rk)
 {
 	rd_kafka_metadata_t *metaData;
 	rd_kafka_resp_err_t kafkaError;
-	
+
 	kafkaError = rd_kafka_metadata (rk, allTopics, onlyTopic, *metaData, timeoutMS);
 }
 #endif
@@ -1637,6 +1746,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
         "new_topic",
 		"log_level",
 		"add_brokers",
+		"create_queue",
         "delete",
         NULL
     };
@@ -1646,6 +1756,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 		OPT_NEW_TOPIC,
 		OPT_LOG_LEVEL,
 		OPT_ADD_BROKERS,
+        OPT_CREATE_QUEUE,
 		OPT_DELETE
     };
 
@@ -1707,6 +1818,45 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 
 			char *brokers = Tcl_GetString (objv[2]);
 			resultCode = kafkatcl_add_brokers (kh, brokers);
+			break;
+		}
+
+		case OPT_CREATE_QUEUE: {
+			if (objc != 3) {
+				Tcl_WrongNumArgs (interp, 2, objv, "command");
+				return TCL_ERROR;
+			}
+
+			// allocate one of our kafka client data objects for Tcl and configure it
+			kafkatcl_queueClientData *kq = (kafkatcl_queueClientData *)ckalloc (sizeof (kafkatcl_queueClientData));
+
+			kq->kafka_queue_magic = KAFKA_QUEUE_MAGIC;
+			kq->interp = interp;
+			kq->rkqu = rd_kafka_queue_new  (rk);
+			kq->kh = kh;
+			kq->consumeCallbackObj = NULL;
+
+			char *cmdName = Tcl_GetString (objv[2]);
+
+#define QUEUE_STRING_FORMAT "kafka_queue%lu"
+			// if cmdName is #auto, generate a unique name for the object
+			int autoGeneratedName = 0;
+			if (strcmp (cmdName, "#auto") == 0) {
+				static unsigned long nextAutoCounter = 0;
+				int baseNameLength = snprintf (NULL, 0, QUEUE_STRING_FORMAT, nextAutoCounter) + 1;
+				cmdName = ckalloc (baseNameLength);
+				snprintf (cmdName, baseNameLength, QUEUE_STRING_FORMAT, nextAutoCounter++);
+				autoGeneratedName = 1;
+			}
+
+			// create a Tcl command to interface to the handle object
+			kq->cmdToken = Tcl_CreateObjCommand (interp, cmdName, kafkatcl_queueObjectObjCmd, kh, kafkatcl_queueObjectDelete);
+			// set the full name to the command in the interpreter result
+			Tcl_GetCommandFullName(interp, kq->cmdToken, Tcl_GetObjResult (interp));
+			if (autoGeneratedName == 1) {
+				ckfree(cmdName);
+			}
+
 			break;
 		}
 
@@ -1834,7 +1984,7 @@ kafkatcl_createHandleObjectCommand (kafkatcl_objectClientData *ko, char *cmdName
 {
 	char errStr[256];
 
-	// allocate one of our kafka handle client data objects for Tcl and 
+	// allocate one of our kafka handle client data objects for Tcl and
 	// configure it
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)ckalloc (sizeof (kafkatcl_handleClientData));
 	Tcl_Interp *interp = ko->interp;
@@ -2210,7 +2360,7 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 
     enum options {
         OPT_CREATE,
-		OPT_VERSION,
+		OPT_VERSION
     };
 
     // basic command line processing
@@ -2237,7 +2387,7 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 
 		case OPT_CREATE: {
 			if (objc != 3) {
-				Tcl_WrongNumArgs (interp, 1, objv, "option arg");
+				Tcl_WrongNumArgs (interp, 2, objv, "command");
 				return TCL_ERROR;
 			}
 
@@ -2271,10 +2421,11 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 				char *objName;
 				int    baseNameLength;
 
+#define OBJECT_STRING_FORMAT "kafka_object%lu"
 				objName = Tcl_GetStringFromObj (objv[0], &baseNameLength);
-				baseNameLength += snprintf (NULL, 0, "%lu", nextAutoCounter) + 1;
+				baseNameLength += snprintf (NULL, 0, OBJECT_STRING_FORMAT, nextAutoCounter) + 1;
 				cmdName = ckalloc (baseNameLength);
-				snprintf (cmdName, baseNameLength, "%s%lu", objName, nextAutoCounter++);
+				snprintf (cmdName, baseNameLength, OBJECT_STRING_FORMAT, nextAutoCounter++);
 				autoGeneratedName = 1;
 			}
 
@@ -2286,7 +2437,6 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 			}
 			break;
 		}
-
 
 	}
 

@@ -66,9 +66,11 @@ typedef struct kafkatcl_topicClientData
 typedef struct kafkatcl_queueClientData
 {
     int kafka_queue_magic;
+	Tcl_Interp *interp;
 	rd_kafka_queue_t *rkqu;
 	kafkatcl_handleClientData *kh;
 	Tcl_Command cmdToken;
+	Tcl_Obj *consumeCallbackObj;
 } kafkatcl_queueClientData;
 
 typedef struct kafkatcl_deliveryReportEvent
