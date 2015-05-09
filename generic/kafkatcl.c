@@ -1834,6 +1834,60 @@ kafkatcl_add_brokers (kafkatcl_handleClientData *kh, char *brokers) {
 	return TCL_OK;
 }
 
+static void
+metadata_print (const char *topic, const struct rd_kafka_metadata *metadata) {
+	int i, j, k;
+
+	printf("Metadata for %s (from broker %"PRId32": %s):\n",
+	   topic ? : "all topics",
+	   metadata->orig_broker_id,
+	   metadata->orig_broker_name);
+
+
+	/* Iterate brokers */
+	printf(" %i brokers:\n", metadata->broker_cnt);
+	for (i = 0 ; i < metadata->broker_cnt ; i++)
+		printf("  broker %"PRId32" at %s:%i\n", metadata->brokers[i].id, metadata->brokers[i].host, metadata->brokers[i].port);
+
+	/* Iterate topics */
+	printf(" %i topics:\n", metadata->topic_cnt);
+	for (i = 0 ; i < metadata->topic_cnt ; i++) {
+		const struct rd_kafka_metadata_topic *t = &metadata->topics[i];
+
+		printf("  topic \"%s\" with %i partitions:", t->topic, t->partition_cnt);
+		if (t->err) {
+			printf(" %s", rd_kafka_err2str(t->err));
+			if (t->err == RD_KAFKA_RESP_ERR_LEADER_NOT_AVAILABLE)
+				printf(" (try again)");
+		}
+		printf("\n");
+
+		/* Iterate topic's partitions */
+		for (j = 0 ; j < t->partition_cnt ; j++) {
+			const struct rd_kafka_metadata_partition *p;
+			p = &t->partitions[j];
+			printf("    partition %"PRId32", " "leader %"PRId32", replicas: ", p->id, p->leader);
+
+			/* Iterate partition's replicas */
+			for (k = 0 ; k < p->replica_cnt ; k++) {
+				printf("%s%"PRId32, k > 0 ? ",":"", p->replicas[k]);
+			}
+
+			/* Iterate partition's ISRs */
+			printf(", isrs: ");
+
+			for (k = 0 ; k < p->isr_cnt ; k++) {
+				printf("%s%"PRId32, k > 0 ? ",":"", p->isrs[k]);
+				if (p->err) {
+					printf(", %s\n", rd_kafka_err2str(p->err));
+				} else {
+					printf("\n");
+				}
+			}
+		}
+	}
+}
+
 #if 0
 int
 kafkatcl_metadata_to_tcl (Tcl_Interp *interp, rd_kafka_t *rk)
@@ -1872,6 +1926,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 		"add_brokers",
 		"create_queue",
 		"output_queue_length",
+		"meta",
         "delete",
         NULL
     };
@@ -1883,6 +1938,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 		OPT_ADD_BROKERS,
         OPT_CREATE_QUEUE,
         OPT_OUTPUT_QUEUE_LENGTH,
+		OPT_META,
 		OPT_DELETE
     };
 
@@ -1994,6 +2050,26 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 
 			Tcl_SetObjResult (interp, Tcl_NewIntObj (rd_kafka_outq_len (rk)));
 
+		}
+
+		case OPT_META: {
+			if (objc != 2) {
+				Tcl_WrongNumArgs (interp, 2, objv, "");
+				return TCL_ERROR;
+			}
+
+			const struct rd_kafka_metadata *metadata;
+
+			rd_kafka_resp_err_t err = rd_kafka_metadata (rk, 0, NULL, &metadata, 5000);
+
+			if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+				return kafkatcl_kafka_error_to_tcl (interp, err, "failed to acquire metadata");
+			}
+
+			metadata_print (NULL, metadata);
+
+			rd_kafka_metadata_destroy (metadata);
+			break;
 		}
 
 		case OPT_DELETE: {
@@ -2580,3 +2656,6 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 }
 
 /* vim: set ts=4 sw=4 sts=4 noet : */
+
+
+
