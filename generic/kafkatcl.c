@@ -1874,6 +1874,47 @@ kafkatcl_meta_topic_list (kafkatcl_handleClientData *kh) {
 /*
  *----------------------------------------------------------------------
  *
+ * kafkatcl_meta_broker_list --
+ *
+ *    given a handle client data create a tcl list of all of the brokers
+ *    and set the interpreter result to it if successful
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_meta_broker_list (kafkatcl_handleClientData *kh) {
+	Tcl_Interp *interp = kh->interp;
+	const struct rd_kafka_metadata *metadata = kh->metadata;
+	int i;
+	Tcl_Obj *listObj = Tcl_NewObj();
+	struct rd_kafka_metadata_broker *broker;
+
+#define BROKER_STRING_FORMAT "%s:%d"
+
+	for (i = 0 ; i < metadata->broker_cnt ; i++) {
+		broker = &metadata->brokers[i];
+		// figure out the size of the string we need
+		int brokerStringLength = snprintf (NULL, 0, BROKER_STRING_FORMAT, broker->host, broker->port) + 1;
+		char *brokerString = ckalloc (brokerStringLength);
+		snprintf (brokerString, brokerStringLength, BROKER_STRING_FORMAT, broker->host, broker->port);
+
+		if (Tcl_ListObjAppendElement (interp, listObj, Tcl_NewStringObj (brokerString, brokerStringLength)) == TCL_ERROR) {
+			ckfree (brokerString);
+			return TCL_ERROR;
+		}
+		ckfree (brokerString);
+	}
+	Tcl_SetObjResult (interp, listObj);
+	return TCL_OK;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
  * kafkatcl_refresh_metadata --
  *
  *    fetch the metadata into our kafkatcl_handleClientData structure
@@ -2154,11 +2195,13 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 
 			static CONST char *subOptions[] = {
 				"topics",
+				"brokers",
 				NULL
 			};
 
 			enum subOptions {
 				SUBOPT_TOPICS,
+				SUBOPT_BROKERS,
 			};
 
 			// argument must be one of the subOptions defined above
@@ -2179,6 +2222,15 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 					}
 
 					return kafkatcl_meta_topic_list (kh);
+				}
+
+				case SUBOPT_BROKERS: {
+					if (objc != 3) {
+						Tcl_WrongNumArgs (interp, 3, objv, "");
+						return TCL_ERROR;
+					}
+
+					return kafkatcl_meta_broker_list (kh);
 				}
 			}
 			break;

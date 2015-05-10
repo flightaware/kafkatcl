@@ -173,9 +173,13 @@ Create a queue object named *command*.  If *command* is **#auto** then creates a
 
 Return the current output queue length, i.e. the messages waiting to be sent to, or acknowledged by, the broker.
 
-* *$handle* info topics
+* *$handle* **info** **topics**
 
 Return a list of the topics defined on the kafka cluster.
+
+* *$handle* **info** **brokers**
+
+REturn a list of all the brokers defined on the connected kafka cluster.  Each element is the IP address of the broker followed by a colon character followed by the port number of the broker, for example *10.3.7.3:9092*.
 
 * *$handle* delete
 
