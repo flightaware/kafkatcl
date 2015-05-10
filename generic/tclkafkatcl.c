@@ -52,10 +52,10 @@ Kafka_Init(Tcl_Interp *interp)
 		return TCL_ERROR;
     }
 
-    namespace = Tcl_CreateNamespace (interp, "::kafkatcl", NULL, NULL);
+    namespace = Tcl_CreateNamespace (interp, "::kafka", NULL, NULL);
 
     /* Create the create command  */
-    Tcl_CreateObjCommand(interp, "::kafkatcl::kafka", (Tcl_ObjCmdProc *) kafkatcl_kafkaObjCmd, (ClientData)NULL, (Tcl_CmdDeleteProc *)NULL);
+    Tcl_CreateObjCommand(interp, "::kafka::kafka", (Tcl_ObjCmdProc *) kafkatcl_kafkaObjCmd, (ClientData)NULL, (Tcl_CmdDeleteProc *)NULL);
 
     Tcl_Export (interp, namespace, "*", 0);
 
@@ -66,7 +66,7 @@ Kafka_Init(Tcl_Interp *interp)
 /*
  *----------------------------------------------------------------------
  *
- * kafkatcl_SafeInit --
+ * Kafka_SafeInit --
  *
  *	Initialize the kafkatcl in a safe interpreter.
  *

@@ -59,18 +59,18 @@ Topic producer and consumer objects are used to produce and consume messages to 
 KafkaTcl command
 ---
 
-The kafkatcl command from which all others are created is **::kafkatcl::kafka**.
+The kafkatcl command from which all others are created is **::kafka::kafka**.
 
-* **kafkatcl::kafka** **version**
+* **kafka::kafka** **version**
 
 Returns the kafka version as a string, like 0.8.6.
 
-* **kafkatcl::kafka** **create** *command*
+* **kafka::kafka** **create** *command*
 
 Create a kafka object.
 
 ```tcl
-set kafka [::kafkatcl::kafka create #auto]
+set kafka [::kafka::kafka create #auto]
 
 $kafka exec "insert into foo ..."
 ```
@@ -78,7 +78,7 @@ $kafka exec "insert into foo ..."
 ...or...
 
 ```tcl
-::kafkatcl::kafka create kafka]
+::kafka::kafka create kafka]
 
 kafka exec "insert into foo ..."
 ```
@@ -258,7 +258,7 @@ Create a kafka object, from that use the *create_consumer* method to create a ka
 ```tcl
 package require kafka
 
-::kafkatcl::kafka create kafka_master
+::kafka::kafka create kafka_master
 
 kafka_master create_consumer kafka_consumer
 
@@ -278,7 +278,7 @@ Create a kafka object, from that use the *create_producer* method to create a ka
 ```tcl
 package require kafka
 
-::kafkatcl::kafka create kafka_master
+::kafka::kafka create kafka_master
 
 kafka_master create_producer kafka_producer
 
