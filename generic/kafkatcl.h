@@ -52,6 +52,7 @@ typedef struct kafkatcl_handleClientData
     Tcl_Command cmdToken;
 	rd_kafka_type_t kafkaType;
 	Tcl_ThreadId threadId;
+	const struct rd_kafka_metadata *metadata;
 } kafkatcl_handleClientData;
 
 typedef struct kafkatcl_topicClientData
@@ -95,7 +96,6 @@ typedef struct kafkatcl_errorEvent
 {
     Tcl_Event event;
 	kafkatcl_objectClientData *ko;
-	rd_kafka_t *rk;
 	int err;
 	const char *reason;
 } kafkatcl_errorEvent;

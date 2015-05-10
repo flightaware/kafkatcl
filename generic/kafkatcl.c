@@ -95,6 +95,12 @@ kafkatcl_handleObjectDelete (ClientData clientData)
     assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
 
 	rd_kafka_destroy (kh->rk);
+
+	// destroy metadata if it exists
+	if (kh->metadata != NULL) {
+		rd_kafka_metadata_destroy (kh->metadata);
+	}
+
     ckfree((char *)clientData);
 }
 
@@ -1834,6 +1840,68 @@ kafkatcl_add_brokers (kafkatcl_handleClientData *kh, char *brokers) {
 	return TCL_OK;
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_meta_topic_list --
+ *
+ *    given a handle client data create a tcl list of all of the topics
+ *    and set the interpreter result to it if successful
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_meta_topic_list (kafkatcl_handleClientData *kh) {
+	Tcl_Interp *interp = kh->interp;
+	const struct rd_kafka_metadata *metadata = kh->metadata;
+	int i;
+	Tcl_Obj *listObj = Tcl_NewObj();
+
+	for (i = 0 ; i < metadata->topic_cnt ; i++) {
+		const struct rd_kafka_metadata_topic *t = &metadata->topics[i];
+
+		if (Tcl_ListObjAppendElement (interp, listObj, Tcl_NewStringObj (t->topic, -1)) == TCL_ERROR) {
+			return TCL_ERROR;
+		}
+	}
+	Tcl_SetObjResult (interp, listObj);
+	return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_refresh_metadata --
+ *
+ *    fetch the metadata into our kafkatcl_handleClientData structure
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_refresh_metadata (kafkatcl_handleClientData *kh) {
+	Tcl_Interp *interp = kh->interp;
+	rd_kafka_t *rk = kh->rk;
+
+	// destroy metadata if it exists
+	if (kh->metadata != NULL) {
+		rd_kafka_metadata_destroy (kh->metadata);
+	}
+
+	rd_kafka_resp_err_t err = rd_kafka_metadata (rk, 0, NULL, &kh->metadata, 5000);
+
+	if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+		return kafkatcl_kafka_error_to_tcl (interp, err, "failed to acquire metadata");
+	}
+
+	return TCL_OK;
+}
+
 static void
 metadata_print (const char *topic, const struct rd_kafka_metadata *metadata) {
 	int i, j, k;
@@ -1927,6 +1995,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 		"create_queue",
 		"output_queue_length",
 		"meta",
+		"info",
         "delete",
         NULL
     };
@@ -1939,6 +2008,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
         OPT_CREATE_QUEUE,
         OPT_OUTPUT_QUEUE_LENGTH,
 		OPT_META,
+		OPT_INFO,
 		OPT_DELETE
     };
 
@@ -2058,6 +2128,8 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 				return TCL_ERROR;
 			}
 
+			kafkatcl_refresh_metadata (kh);
+
 			const struct rd_kafka_metadata *metadata;
 
 			rd_kafka_resp_err_t err = rd_kafka_metadata (rk, 0, NULL, &metadata, 5000);
@@ -2069,6 +2141,46 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 			metadata_print (NULL, metadata);
 
 			rd_kafka_metadata_destroy (metadata);
+			break;
+		}
+
+		case OPT_INFO: {
+			int suboptIndex;
+
+			if (objc < 3) {
+				Tcl_WrongNumArgs (interp, 2, objv, "?topics?");
+				return TCL_ERROR;
+			}
+
+			static CONST char *subOptions[] = {
+				"topics",
+				NULL
+			};
+
+			enum subOptions {
+				SUBOPT_TOPICS,
+			};
+
+			// argument must be one of the subOptions defined above
+			if (Tcl_GetIndexFromObj (interp, objv[2], subOptions, "suboption",
+				TCL_EXACT, &suboptIndex) != TCL_OK) {
+				return TCL_ERROR;
+			}
+
+			if (kh->metadata == NULL) {
+				kafkatcl_refresh_metadata (kh);
+			}
+
+			switch ((enum subOptions) suboptIndex) {
+				case SUBOPT_TOPICS: {
+					if (objc != 3) {
+						Tcl_WrongNumArgs (interp, 3, objv, "");
+						return TCL_ERROR;
+					}
+
+					return kafkatcl_meta_topic_list (kh);
+				}
+			}
 			break;
 		}
 
@@ -2213,6 +2325,7 @@ kafkatcl_createHandleObjectCommand (kafkatcl_objectClientData *ko, char *cmdName
 	kh->ko = ko;
 	kh->kafkaType = kafkaType;
 	kh->threadId = Tcl_GetCurrentThread ();
+	kh->metadata = NULL;
 
 	Tcl_CreateEventSource (kafkatcl_EventSetupProc, kafkatcl_EventCheckProc, (ClientData) kh);
 

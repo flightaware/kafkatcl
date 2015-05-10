@@ -173,6 +173,10 @@ Create a queue object named *command*.  If *command* is **#auto** then creates a
 
 Return the current output queue length, i.e. the messages waiting to be sent to, or acknowledged by, the broker.
 
+* *$handle* info topics
+
+Return a list of the topics defined on the kafka cluster.
+
 * *$handle* delete
 
 Delete the handle object, destroying the command.
