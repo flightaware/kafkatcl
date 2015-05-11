@@ -220,8 +220,8 @@ kafkatcl_parse_offset (Tcl_Interp *interp, Tcl_Obj *offsetObj, int64_t *offsetPt
 /*
  *--------------------------------------------------------------
  *
- * kafkatcl_kafka_error_to_errorcode_string -- given a CassError
- *   code return a string corresponding to the CassError constant
+ * kafkatcl_kafka_error_to_errorcode_string -- given a kafka
+ *   code return a string corresponding to the kafka error constant
  *
  * Results:
  *      returns a pointer to a const char *
@@ -435,11 +435,12 @@ kafkatcl_log_level_to_string (int severity) {
 /*
  *--------------------------------------------------------------
  *
- * kafkatcl_kafka_error_to_tcl -- given a CassError code and a field
- *   name, if the error code is CASS_OK return TCL_OK but if it's anything
+ * kafkatcl_kafka_error_to_tcl -- given a kafka error code and a field
+ *   name, if the error code is RD_KAFKA_RESP_ERR_NO_ERROR then
+ *   return TCL_OK but if it's anything
  *   else, set the interpreter result to the corresponding error string
- *   and set the error code to CASSANDRA and the e-code like
- *   CASS_ERROR_LIB_BAD_PARAMS
+ *   and set the error code to KAFKA and the e-code like
+ *   RD_KAFKA_RESP_ERR_INVALID_MSG
  *
  * Results:
  *      A standard Tcl result
@@ -1523,7 +1524,7 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
  *
  *    We don't need to do anything here because we generate Tcl events
  *    onto the originating thread via the callbacks invoked from the
- *    Cassandra cpp-driver library and that's (apparently) all Tcl
+ *   kafka cpp-driver library and that's (apparently) all Tcl
  *    needs to do its thing.
  *
  * Results:
@@ -1545,7 +1546,7 @@ kafkatcl_EventSetupProc (ClientData data, int flags) {
  *
  *    We don't need to do that because we generate Tcl events
  *    onto the originating thread via the callbacks invoked from the
- *    Cassandra cpp-driver library, so we handle it that way.
+ *    kafka cpp-driver library, so we handle it that way.
  *
  * Results:
  *    The program compiles.
@@ -1874,6 +1875,101 @@ kafkatcl_meta_topic_list (kafkatcl_handleClientData *kh) {
 /*
  *----------------------------------------------------------------------
  *
+ * kafkatcl_meta_find_topic --
+ *
+ *    given a handle client data and a topic name,
+ *    return the matching const struct rd_kafka_metadata_topic *
+ *    pointer or NULL if none is found
+ *
+ * Results:
+ *    the matching const struct rd_kafka_metadata_topic * or NULL
+ *
+ *----------------------------------------------------------------------
+ */
+const struct rd_kafka_metadata_topic *
+kafkatcl_meta_find_topic (kafkatcl_handleClientData *kh, char *topic) {
+	const struct rd_kafka_metadata *metadata = kh->metadata;
+	int i;
+
+	for (i = 0 ; i < metadata->topic_cnt ; i++) {
+		const struct rd_kafka_metadata_topic *t = &metadata->topics[i];
+
+		if (strcmp (t->topic, topic) == 0) {
+			return t;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_meta_find_topic_tcl_result --
+ *
+ *    given a handle client data and a topic name,
+ *    set the passed-in const struct rd_kafka_metadata_topic *
+ *    to the matching metadata topic structure or to NULL if none is found
+ *
+ *    Set an error message into the Tcl interpreter if there is an
+ *    error and return TCL_OK if the topic was found or TCL_ERROR if
+ *    it wasn't
+ *
+ * Results:
+ *    A standard Tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_meta_find_topic_tcl_result (kafkatcl_handleClientData *kh, char *topicName, const struct rd_kafka_metadata_topic **topicPtr) {
+	const struct rd_kafka_metadata *metadata = kh->metadata;
+	int i;
+	Tcl_Interp *interp = kh->interp;
+
+	for (i = 0 ; i < metadata->topic_cnt ; i++) {
+		const struct rd_kafka_metadata_topic *t = &metadata->topics[i];
+
+		if (strcmp (t->topic, topicName) == 0) {
+			*topicPtr = t;
+			return TCL_OK;
+		}
+	}
+
+	*topicPtr = NULL;
+	Tcl_ResetResult (interp);
+	Tcl_AppendResult (interp, "kafka error: topic '", topicName, "' not found", NULL);
+	return TCL_ERROR;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_meta_topic_partitions --
+ *
+ *    given a handle client data and a topic name,
+ *    set the interpreter result to the number of partitions
+ *    covering that topic if successful
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_meta_topic_partitions (kafkatcl_handleClientData *kh, char *topic) {
+	const struct rd_kafka_metadata_topic *t;
+	Tcl_Interp *interp = kh->interp;
+
+	if (kafkatcl_meta_find_topic_tcl_result (kh, topic, &t) == TCL_ERROR) {
+		return TCL_ERROR;
+	}
+	Tcl_SetObjResult (interp, Tcl_NewIntObj (t->partition_cnt));
+	return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
  * kafkatcl_meta_broker_list --
  *
  *    given a handle client data create a tcl list of all of the brokers
@@ -1910,7 +2006,6 @@ kafkatcl_meta_broker_list (kafkatcl_handleClientData *kh) {
 	Tcl_SetObjResult (interp, listObj);
 	return TCL_OK;
 }
-
 
 /*
  *----------------------------------------------------------------------
@@ -2196,12 +2291,14 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 			static CONST char *subOptions[] = {
 				"topics",
 				"brokers",
+				"partitions",
 				NULL
 			};
 
 			enum subOptions {
 				SUBOPT_TOPICS,
 				SUBOPT_BROKERS,
+				SUBOPT_PARTITIONS,
 			};
 
 			// argument must be one of the subOptions defined above
@@ -2231,6 +2328,15 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 					}
 
 					return kafkatcl_meta_broker_list (kh);
+				}
+
+				case SUBOPT_PARTITIONS: {
+					if (objc != 4) {
+						Tcl_WrongNumArgs (interp, 3, objv, "topic");
+						return TCL_ERROR;
+					}
+
+					return kafkatcl_meta_topic_partitions (kh, Tcl_GetString (objv[3]));
 				}
 			}
 			break;

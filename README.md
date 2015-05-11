@@ -179,7 +179,11 @@ Return a list of the topics defined on the kafka cluster.
 
 * *$handle* **info** **brokers**
 
-REturn a list of all the brokers defined on the connected kafka cluster.  Each element is the IP address of the broker followed by a colon character followed by the port number of the broker, for example *10.3.7.3:9092*.
+Return a list of all the brokers defined on the connected kafka cluster.  Each element is the IP address of the broker followed by a colon character followed by the port number of the broker, for example *10.3.7.3:9092*.
+
+* *$handle* **info** **partitions** *topic*
+
+Return the number of partitions defined for the specified topic.
 
 * *$handle* delete
 
