@@ -202,21 +202,11 @@ If *key* is specified then it's passed to the topic partitioner as well as sent 
 Methods of kafka topic consumer object
 ---
 
-* *$topic* **consume** *partition* *timeout* *array*
-
-Consume one message from the specified partition without *timeout* milliseconds into array *array*.  If there's an error, you get a Tcl error.
-
-* *$topic* **consume_batch** *partition* *timeout* *count* *array* *code*
-
-Read up to *count* messages or however many have come in less than that without *timeout* milliseconds.
-
-For each message received fill the array *array* with fields from the message containing the message *payload*, *partition*, *offset*, *topic* name and optional *key*, repeatedly executing *code* for each message received.
-
-*offset* can be **beginning** to start consuming at the beginning of the partition (i.e. the oldest message in the partition), **end** to start consuming from the end of the partition, **stored** to start consuming from the offset retrieved from the offset store, whatever that means, a positive integer, which starts consuming starting from the specified message number from that partition, or a negative integer, which says to start consuming that many messages from the end.
-
 * *$topic* **consume_start** *partition* *offset*
 
 Start consuming the established topic for the specified *partition* starting at offset *offset*.
+
+*offset* can be **beginning** to start consuming at the beginning of the partition (i.e. the oldest message in the partition), **end** to start consuming from the end of the partition, **stored** to start consuming from the offset retrieved from the offset store (whatever that means), a positive integer, which starts consuming starting from the specified message number from that partition, or a negative integer, which says to start consuming that many messages from the end.
 
 * *$topic* **consume_start_queue** *partition* *offset* *queue*
 
@@ -227,6 +217,18 @@ The queue should have been created with the *$handle* **create_queue** *command*
 * *$topic* **consume_stop** *partition*
 
 Stop consuming messages for the established topic and specified *partition*, purging all messages currently in the local queue.
+
+* *$topic* **consume** *partition* *timeout* *array*
+
+Consume one message from the topic object for the specified partition received within *timeout* milliseconds into array *array*.  If there's an error, you get a Tcl error.
+
+* *$topic* **consume_batch** *partition* *timeout* *count* *array* *code*
+
+Consume up to *count* messages or however many have come in less than that within *timeout* milliseconds.
+
+For each message received fill the array *array* with fields from the message containing the message *payload*, *partition*, *offset*, *topic* name and optional *key*, repeatedly executing *code* for each message received.
+
+This method returns number of rows processed.
 
 * *$topic* **consume_callback** *partition* *timeoutMS* *command*
 
@@ -264,9 +266,11 @@ Unlike with the **consume** method of a topic consumer, the partition is not spe
 
 * *$queue* **consume_batch** *timeoutMS* *count* *array* *code*
 
-As with consuming a batch from a topic, reads up to *count* messages or however many have come in less than that without *timeout* milliseconds.
+As with consuming a batch from a topic, reads up to *count* messages or however many have come in less than that within *timeout* milliseconds.
 
 For each message received the array *array* is filled with fields from the message containing the message *payload*, *partition*, *offset*, *topic* name and optional *key*, repeatedly executing *code* for each message received.
+
+The method returns number of rows processed.
 
 * *$queue* **consume_callback** *timeout* *command*
 
