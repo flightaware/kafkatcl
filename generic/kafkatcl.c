@@ -1635,7 +1635,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 
 			ckfree (rkMessages);
 
-			if (resultCode == TCL_OK) {
+			if (resultCode != TCL_ERROR) {
 				Tcl_SetObjResult (interp, Tcl_NewIntObj (gotCount));
 			}
 			break;
@@ -2042,6 +2042,7 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			break;
 		}
 
+		// NB bears an awful lot in common with OPT_CONSUME_QUEUE elsewhere
 		case OPT_CONSUME_QUEUE_BATCH: {
 			int timeoutMS;
 			int count;
@@ -2065,14 +2066,14 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 
 			Tcl_Obj *codeObj = objv[5];
 
-			rd_kafka_message_t *rkMessages;
+			rd_kafka_message_t **rkMessages = ckalloc (sizeof (rd_kafka_message_t *) * count);
 
-			int gotCount = rd_kafka_consume_batch_queue (rkqu, timeoutMS, &rkMessages, count);
+			int gotCount = rd_kafka_consume_batch_queue (rkqu, timeoutMS, rkMessages, count);
 
 			int i;
 
 			for (i = 0; i < gotCount; i++) {
-				resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, &rkMessages[i]);
+				resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rkMessages[i]);
 
 				if (resultCode == TCL_ERROR) {
 					break;
@@ -2088,6 +2089,12 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 					resultCode = TCL_OK;
 					break;
 				}
+			}
+
+			ckfree (rkMessages);
+
+			if (resultCode != TCL_ERROR) {
+				Tcl_SetObjResult (interp, Tcl_NewIntObj (gotCount));
 			}
 
 			break;
