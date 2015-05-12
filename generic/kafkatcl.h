@@ -76,7 +76,7 @@ typedef struct kafkatcl_queueClientData
 typedef struct kafkatcl_deliveryReportEvent
 {
     Tcl_Event event;
-	kafkatcl_topicClientData *kt;
+	kafkatcl_objectClientData *ko;
 	rd_kafka_message_t rkmessage;
 } kafkatcl_deliveryReportEvent;
 

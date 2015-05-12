@@ -31,12 +31,12 @@ Tcl_Interp *loggingInterp = NULL;
 void
 kafkatcl_kafkaObjectDelete (ClientData clientData)
 {
-    kafkatcl_objectClientData *kh = (kafkatcl_objectClientData *)clientData;
+    kafkatcl_objectClientData *ko = (kafkatcl_objectClientData *)clientData;
 
-    assert (kh->kafka_object_magic == KAFKA_OBJECT_MAGIC);
+    assert (ko->kafka_object_magic == KAFKA_OBJECT_MAGIC);
 
-	rd_kafka_conf_destroy (kh->conf);
-	rd_kafka_topic_conf_destroy (kh->topicConf);
+	rd_kafka_conf_destroy (ko->conf);
+	rd_kafka_topic_conf_destroy (ko->topicConf);
     ckfree((char *)clientData);
 }
 
@@ -1243,20 +1243,29 @@ kafkatcl_delivery_report_eventProc (Tcl_Event *tevPtr, int flags) {
 
 	kafkatcl_deliveryReportEvent *evPtr = (kafkatcl_deliveryReportEvent *)tevPtr;
 	int tclReturnCode;
-	kafkatcl_topicClientData *kt = evPtr->kt;
-	Tcl_Interp *interp = kt->kh->interp;
+	kafkatcl_objectClientData *ko = evPtr->ko;
+	Tcl_Interp *interp = ko->interp;
 
 	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage);
+
+	// free the payload
+	ckfree (evPtr->rkmessage.payload);
+
+	// free the key if there is one
+	if (evPtr->rkmessage.key != NULL) {
+		ckfree (evPtr->rkmessage.key);
+	}
 
 	// even if this fails we still want the event taken off the queue
 	// this function will do the background error thing if there is a tcl
 	// error running the callback
-	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, kt->consumeCallbackObj, listObj);
+	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, ko->deliveryReportCallbackObj, listObj);
 
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
 	// it and don't want it removed from the queue
 	return 1;
 }
+
 
 /*
  *----------------------------------------------------------------------
@@ -1273,7 +1282,9 @@ kafkatcl_delivery_report_eventProc (Tcl_Event *tevPtr, int flags) {
  *----------------------------------------------------------------------
  */
 void kafkatcl_delivery_report_callback (rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void *opaque) {
-	kafkatcl_topicClientData *kt = opaque;
+	kafkatcl_objectClientData *ko = opaque;
+
+    assert (ko->kafka_object_magic == KAFKA_OBJECT_MAGIC);
 
 	kafkatcl_deliveryReportEvent *evPtr;
 
@@ -1282,7 +1293,7 @@ void kafkatcl_delivery_report_callback (rd_kafka_t *rk, const rd_kafka_message_t
 	evPtr = ckalloc (sizeof (kafkatcl_deliveryReportEvent));
 
 	evPtr->event.proc = kafkatcl_delivery_report_eventProc;
-	evPtr->kt = kt;
+	evPtr->ko = ko;
 
 	// structure copy
 	evPtr->rkmessage = *rkmessage;
@@ -1297,7 +1308,7 @@ void kafkatcl_delivery_report_callback (rd_kafka_t *rk, const rd_kafka_message_t
 		memcpy (evPtr->rkmessage.key, rkmessage->key, rkmessage->key_len);
 	}
 
-	Tcl_ThreadQueueEvent (kt->kh->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
+	Tcl_ThreadQueueEvent (ko->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_HEAD);
 	return;
 }
 
@@ -2915,7 +2926,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
         OPT_CREATE_PRODUCER,
         OPT_CREATE_CONSUMER,
 		OPT_TOPIC_CONFIG,
-        OPT_SET_DELIVERY_REPORT_MESSAGE_CALLBACK,
+        OPT_SET_DELIVERY_REPORT_CALLBACK,
         OPT_SET_ERROR_CALLBACK,
         OPT_SET_STATISTICS_CALLBACK,
 		OPT_LOGGER,
@@ -2985,7 +2996,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			break;
 		}
 
-		case OPT_SET_DELIVERY_REPORT_MESSAGE_CALLBACK: {
+		case OPT_SET_DELIVERY_REPORT_CALLBACK: {
 			if (objc != 3) {
 				Tcl_WrongNumArgs (interp, 2, objv, "command");
 				return TCL_ERROR;
@@ -2995,7 +3006,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 				Tcl_DecrRefCount (ko->deliveryReportCallbackObj);
 			}
 
-			ko->deliveryReportCallbackObj = objv[3];
+			ko->deliveryReportCallbackObj = objv[2];
 			Tcl_IncrRefCount (ko->deliveryReportCallbackObj);
 
 			rd_kafka_conf_set_dr_msg_cb (ko->conf, kafkatcl_delivery_report_callback);
