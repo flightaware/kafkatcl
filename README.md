@@ -124,10 +124,6 @@ Invoke *command* when kafka cpp-driver statistics callbacks are received.
 
 The command will be invoked with one argument, which is the JSON provided by the stats callback.
 
-* *$kafka* **set_socket_callback** 
-
-Not yet implemented and may not be implemented.
-
 * *$handle* **logger** **syslog**
 
 Log kafka logger messages to the system log.

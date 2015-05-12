@@ -2866,7 +2866,6 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
         "set_delivery_report_message_callback",
         "set_error_callback",
 		"set_statistics_callback",
-		"set_socket_callback",
 		"logger",
 		"delete",
         NULL
@@ -2881,7 +2880,6 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
         OPT_SET_DELIVERY_REPORT_MESSAGE_CALLBACK,
         OPT_SET_ERROR_CALLBACK,
         OPT_SET_STATISTICS_CALLBACK,
-		OPT_SET_SOCKET_CALLBACK,
 		OPT_LOGGER,
 		OPT_DELETE
     };
@@ -3014,10 +3012,6 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			Tcl_IncrRefCount (ko->statisticsCallbackObj);
 
 			rd_kafka_conf_set_stats_cb (ko->conf, kafkatcl_stats_callback);
-			break;
-		}
-
-		case OPT_SET_SOCKET_CALLBACK: {
 			break;
 		}
 
