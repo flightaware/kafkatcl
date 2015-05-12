@@ -86,9 +86,11 @@ kafka exec "insert into foo ..."
 Methods of kafka interface object
 ---
 
-* *$kafka* **config**
+* *$kafka* **config** *?key value?*
 
-Set a configuration property by specifying the property name and value.  Returns a Tcl error if it fails.
+If invoked without arguments, returns a list of the configuration as key-value pairs suitable for passing to *array set* or whatever.  If invoked with a key and value, sets the key-value pair into the configuration.
+
+Returns a Tcl error if it fails.
 
 * *$kafka* **create_producer** *cmdName*
 
@@ -119,10 +121,6 @@ The command will be invoked with one argument, which is the JSON provided by the
 * *$kafka* **set_socket_callback** 
 
 Not yet implemented and may not be implemented.
-
-* *$kafka* **get_configuration** *array*
-
-Store the kafka object's configuration properties into the specified array.
 
 * *$kafka* **get_topic_configuration**  *array*
 

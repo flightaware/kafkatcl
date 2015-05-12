@@ -554,6 +554,82 @@ int kafkatcl_topic_conf_to_array (Tcl_Interp *interp, char *arrayName, rd_kafka_
 	return resultCode;
 }
 
+/*
+ *--------------------------------------------------------------
+ *
+ * kafkatcl_stringpairs_to_tcl_list -- given a list of pointers
+ *   to strings and a count of the number, return a Tcl list object
+ *
+ * Results:
+ *      A standard Tcl result
+ *
+ * Side effects:
+ *      None.
+ *
+ *--------------------------------------------------------------
+ */
+Tcl_Obj *
+kafkatcl_stringpairs_to_tcl_list (const char **stringPairs, size_t count) {
+	Tcl_Obj **objv = (Tcl_Obj **)ckalloc (sizeof(Tcl_Obj *) * count);
+	int i;
+
+	for (i = 0; i < count; i++) {
+		objv[i] = Tcl_NewStringObj (stringPairs[i], -1);
+	}
+
+	return Tcl_NewListObj (count, objv);
+}
+
+/*
+ *--------------------------------------------------------------
+ *
+ * kafkatcl_conf_to_list -- given an interp and
+ *   a rd_kafka_conf_t, return a list composed of
+ *   the elements of the rd_kafka_conf_t
+ *
+ * Results:
+ *      A standard Tcl result
+ *
+ * Side effects:
+ *      None.
+ *
+ *--------------------------------------------------------------
+ */
+int kafkatcl_conf_to_list (Tcl_Interp *interp, rd_kafka_conf_t *conf) {
+	size_t count;
+	const char **stringPairs = rd_kafka_conf_dump (conf, &count);
+
+	Tcl_SetObjResult (interp, kafkatcl_stringpairs_to_tcl_list (stringPairs, count));
+	rd_kafka_conf_dump_free (stringPairs, count);
+
+	return TCL_OK;
+}
+
+/*
+ *--------------------------------------------------------------
+ *
+ * kafkatcl_topic_conf_to_list -- given an interp and
+ *   a rd_kafka_topic_conf_t, return a list composed from
+ *   the key-value pairs of the rd_kafka_topic_conf_t
+ *
+ * Results:
+ *      A standard Tcl result
+ *
+ * Side effects:
+ *      None.
+ *
+ *--------------------------------------------------------------
+ */
+int kafkatcl_topic_conf_to_list (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf) {
+	size_t count;
+	const char **stringPairs = rd_kafka_topic_conf_dump (topicConf, &count);
+
+	Tcl_SetObjResult (interp, kafkatcl_stringpairs_to_tcl_list (stringPairs, count));
+
+	rd_kafka_conf_dump_free (stringPairs, count);
+	return TCL_OK;
+}
+
 
 /*
  *--------------------------------------------------------------
@@ -2538,7 +2614,6 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
         "set_error_callback",
 		"set_statistics_callback",
 		"set_socket_callback",
-		"get_configuration",
 		"get_topic_configuration",
 		"logger",
 		"delete",
@@ -2555,7 +2630,6 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
         OPT_SET_ERROR_CALLBACK,
         OPT_SET_STATISTICS_CALLBACK,
 		OPT_SET_SOCKET_CALLBACK,
-		OPT_GET_CONFIGURATION,
 		OPT_GET_TOPIC_CONFIGURATION,
 		OPT_LOGGER,
 		OPT_DELETE
@@ -2573,14 +2647,18 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 
     switch ((enum options) optIndex) {
 		case OPT_CONFIG: {
-			if (objc != 4) {
-				Tcl_WrongNumArgs (interp, 2, objv, "name value");
+			if ((objc != 2) && (objc != 4)) {
+				Tcl_WrongNumArgs (interp, 2, objv, "?name value?");
 				return TCL_ERROR;
 			}
 
-			char *name = Tcl_GetString (objv[2]);
-			char *value = Tcl_GetString (objv[3]);
-			resultCode = kafkatcl_set_conf (ko, name, value);
+			if (objc == 2) {
+				resultCode = kafkatcl_conf_to_list (interp, ko->conf);
+			} else {
+				char *name = Tcl_GetString (objv[2]);
+				char *value = Tcl_GetString (objv[3]);
+				resultCode = kafkatcl_set_conf (ko, name, value);
+			}
 			break;
 		}
 
@@ -2685,17 +2763,6 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 		}
 
 		case OPT_SET_SOCKET_CALLBACK: {
-			break;
-		}
-
-		case OPT_GET_CONFIGURATION: {
-			if (objc != 3) {
-				Tcl_WrongNumArgs (interp, 2, objv, "array");
-				return TCL_ERROR;
-			}
-
-			char *arrayName = Tcl_GetString (objv[2]);
-			resultCode = kafkatcl_conf_to_array (interp, arrayName, ko->conf);
 			break;
 		}
 
