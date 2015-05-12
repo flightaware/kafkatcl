@@ -698,7 +698,79 @@ kafkatcl_handle_command_to_handleClientData (Tcl_Interp *interp, char *handleCom
 /*
  *--------------------------------------------------------------
  *
- *   kafkatcl_message_to_tcl -- given a Tcl interpreter, the name of
+ *   kafkatcl_message_to_tcl_list -- given a Tcl interpreter,
+ *   and a kafka rd_kafka_message_t message, generate
+ *   a list of key value pairs of the message payload, partition,
+ *   key, offset and topic or generate an error key-value pair
+ *
+ * Results:
+ *     a standard Tcl result
+ *
+ * Side effects:
+ *      None.
+ *
+ *--------------------------------------------------------------
+ */
+Tcl_Obj *
+kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
+	Tcl_Obj *listObj;
+
+	if (rdm->err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+		// error message is in the payload
+
+		const char *kafkaErrorString = rd_kafka_err2str (rdm->err);
+		const char *kafkaErrorCodeString = kafkatcl_kafka_error_to_errorcode_string (rdm->err);
+
+#define KAFKATCL_MESSAGE_ERROR_LIST_COUNT 6
+		Tcl_Obj *listObjv[KAFKATCL_MESSAGE_ERROR_LIST_COUNT];
+
+		listObjv[0] = Tcl_NewStringObj ("error", -1);
+		listObjv[1] = Tcl_NewStringObj (kafkaErrorString, -1);
+
+		listObjv[2] = Tcl_NewStringObj ("code", -1);
+		listObjv[3] = Tcl_NewStringObj (kafkaErrorCodeString, -1);
+
+		listObjv[4] = Tcl_NewStringObj ("message", -1);
+		listObjv[5] = Tcl_NewStringObj (rdm->payload, rdm->len);
+
+		listObj = Tcl_NewListObj (KAFKATCL_MESSAGE_ERROR_LIST_COUNT, listObjv);
+	} else {
+#define KAFKATCL_GOOD_MESSAGE_LIST_COUNT 10
+		Tcl_Obj *listObjv[KAFKATCL_GOOD_MESSAGE_LIST_COUNT];
+
+		listObjv[0] = Tcl_NewStringObj ("payload", -1);
+		listObjv[1] = Tcl_NewStringObj (rdm->payload, rdm->len);
+
+		listObjv[2] = Tcl_NewStringObj ("partition", -1);
+		listObjv[3] = Tcl_NewIntObj (rdm->partition);
+
+		listObjv[4] = Tcl_NewStringObj ("offset", -1);
+		listObjv[5] = Tcl_NewWideIntObj (rdm->offset);
+
+		listObjv[6] = Tcl_NewStringObj ("topic", -1);
+		listObjv[7] = Tcl_NewStringObj (rd_kafka_topic_name (rdm->rkt), -1);
+
+		int count;
+		// add the key if there is one
+		if (rdm->key != NULL) {
+			listObjv[8] = Tcl_NewStringObj ("key", -1);
+			listObjv[9] = Tcl_NewStringObj (rdm->key, rdm->key_len);
+			count = KAFKATCL_GOOD_MESSAGE_LIST_COUNT;
+		} else {
+			count = KAFKATCL_GOOD_MESSAGE_LIST_COUNT - 2;
+		}
+
+		listObj = Tcl_NewListObj (KAFKATCL_GOOD_MESSAGE_LIST_COUNT, listObjv);
+	}
+
+	return listObj;
+}
+
+
+/*
+ *--------------------------------------------------------------
+ *
+ *   kafkatcl_message_to_tcl_array -- given a Tcl interpreter, the name of
  *   an array and a kafka rd_kafka_message_t message, either generate
  *   a tcl error or set fields of the message into the specified array
  *
@@ -711,7 +783,7 @@ kafkatcl_handle_command_to_handleClientData (Tcl_Interp *interp, char *handleCom
  *--------------------------------------------------------------
  */
 int
-kafkatcl_message_to_tcl (Tcl_Interp *interp, char *arrayName, rd_kafka_message_t *rdm) {
+kafkatcl_message_to_tcl_array (Tcl_Interp *interp, char *arrayName, rd_kafka_message_t *rdm) {
 	if (rdm->err != RD_KAFKA_RESP_ERR_NO_ERROR) {
 		// error message is in the payload
 		Tcl_UnsetVar2 (interp, arrayName, "payload", 0);
@@ -850,6 +922,310 @@ kafkatcl_invoke_callback_with_argument (Tcl_Interp *interp, Tcl_Obj *callbackObj
 	return tclReturnCode;
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_EventSetupProc --
+ *    This routine is a required argument to Tcl_CreateEventSource
+ *
+ *    Normally here an extension that generates events does something
+ *    to make sure the application wakes up when events of the desired
+ *    type occur.
+ *
+ *    We don't need to do anything here because we generate Tcl events
+ *    onto the originating thread via the callbacks invoked from the
+ *   kafka cpp-driver library and that's (apparently) all Tcl
+ *    needs to do its thing.
+ *
+ * Results:
+ *    The program compiles.
+ *
+ *----------------------------------------------------------------------
+ */
+void
+kafkatcl_EventSetupProc (ClientData data, int flags) {
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_EventCheckProc --
+ *
+ *    Normally here an extension that generates events would look at its
+ *    tables or whatnot to see what needs to be generated as an event.
+ *
+ *    We don't need to do that because we generate Tcl events
+ *    onto the originating thread via the callbacks invoked from the
+ *    kafka cpp-driver library, so we handle it that way.
+ *
+ * Results:
+ *    The program compiles.
+ *
+ *----------------------------------------------------------------------
+ */
+void
+kafkatcl_EventCheckProc (ClientData data, int flags) {
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_logging_eventProc --
+ *
+ *    this routine is called by the Tcl event handler to process logging
+ *    callbacks we have gotten from the Kafka cpp-driver
+ *
+ * Results:
+ *    returns 1 to say we handled the event and the dispatcher can delete it
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_logging_eventProc (Tcl_Event *tevPtr, int flags) {
+
+	// we got called with a Tcl_Event pointer but really it's a pointer to
+	// our kafkatcl_loggingEvent structure that has the Tcl_Event and
+	// some other stuff that we need.
+	// Go get that.
+
+	kafkatcl_loggingEvent *evPtr = (kafkatcl_loggingEvent *)tevPtr;
+	int tclReturnCode;
+	Tcl_Interp *interp = evPtr->interp;
+#define KAFKATCL_LOG_CALLBACK_LISTCOUNT 6
+
+	Tcl_Obj *listObjv[KAFKATCL_LOG_CALLBACK_LISTCOUNT];
+
+	// probably won't happen but if we get a logging callback and have
+	// no callback object, return 1 saying we handled it and let the
+	// dispatcher delete the message NB this isn't exactly cool
+	if (kafkatcl_loggingCallbackObj == NULL) {
+		return 1;
+	}
+
+	// construct a list of key-value pairs representing the log message
+
+	listObjv[0] = Tcl_NewStringObj ("level", -1);
+	listObjv[1] = Tcl_NewIntObj (evPtr->level);
+
+	listObjv[2] = Tcl_NewStringObj ("facility", -1);
+	listObjv[3] = Tcl_NewStringObj (evPtr->fac, -1);
+
+	listObjv[4] = Tcl_NewStringObj ("message", -1);
+	listObjv[5] = Tcl_NewStringObj (evPtr->buf, -1);
+
+
+	Tcl_Obj *listObj = Tcl_NewListObj (KAFKATCL_LOG_CALLBACK_LISTCOUNT, listObjv);
+
+	ckfree (evPtr->fac);
+	evPtr->fac = NULL;
+
+	ckfree (evPtr->buf);
+	evPtr->buf = NULL;
+
+	// even if this fails we still want the event taken off the queue
+	// this function will do the background error thing if there is a tcl
+	// error running the callback
+	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, kafkatcl_loggingCallbackObj, listObj);
+	// tell the dispatcher we handled it.  0 would mean we didn't deal with
+	// it and don't want it removed from the queue
+	return 1;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_stats_eventProc --
+ *
+ *    this routine is called by the Tcl event handler to process stats
+ *    callbacks we have gotten from the Kafka cpp-driver
+ *
+ * Results:
+ *    returns 1 to say we handled the event and the dispatcher can delete it
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_stats_eventProc (Tcl_Event *tevPtr, int flags) {
+
+	// we got called with a Tcl_Event pointer but really it's a pointer to
+	// our kafkatcl_statsEvent structure that has the Tcl_Event and
+	// some other stuff that we need.
+	// Go get that.
+
+	kafkatcl_statsEvent *evPtr = (kafkatcl_statsEvent *)tevPtr;
+	int tclReturnCode;
+	kafkatcl_objectClientData *ko = evPtr->ko;
+	Tcl_Interp *interp = ko->interp;
+
+	Tcl_Obj *jsonObj = Tcl_NewStringObj (evPtr->json, evPtr->jsonLen);
+
+
+	// even if this fails we still want the event taken off the queue
+	// this function will do the background error thing if there is a tcl
+	// error running the callback
+	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, ko->statisticsCallbackObj, jsonObj);
+	free (evPtr->json);
+	// tell the dispatcher we handled it.  0 would mean we didn't deal with
+	// it and don't want it removed from the queue
+	return 1;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_error_eventProc --
+ *
+ *    this routine is called by the Tcl event handler to process error
+ *    callbacks we have gotten from the Kafka cpp-driver
+ *
+ * Results:
+ *    returns 1 to say we handled the event and the dispatcher can delete it
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_error_eventProc (Tcl_Event *tevPtr, int flags) {
+
+	// we got called with a Tcl_Event pointer but really it's a pointer to
+	// our kafkatcl_statsEvent structure that has the Tcl_Event and
+	// some other stuff that we need.
+	// Go get that.
+
+	kafkatcl_errorEvent *evPtr = (kafkatcl_errorEvent *)tevPtr;
+	int tclReturnCode;
+	kafkatcl_objectClientData *ko = evPtr->ko;
+	Tcl_Interp *interp = ko->interp;
+
+#define KAFKATCL_EVENT_CALLBACK_LISTCOUNT 4
+
+	Tcl_Obj *listObjv[KAFKATCL_LOG_CALLBACK_LISTCOUNT];
+
+	// construct a list of key-value pairs representing the log message
+
+	listObjv[0] = Tcl_NewStringObj ("err", -1);
+	listObjv[1] = Tcl_NewIntObj (evPtr->err);
+
+	listObjv[2] = Tcl_NewStringObj ("reason", -1);
+	listObjv[3] = Tcl_NewStringObj (evPtr->reason, -1);
+
+
+	Tcl_Obj *listObj = Tcl_NewListObj (KAFKATCL_EVENT_CALLBACK_LISTCOUNT, listObjv);
+
+	// even if this fails we still want the event taken off the queue
+	// this function will do the background error thing if there is a tcl
+	// error running the callback
+	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, ko->errorCallbackObj, listObj);
+
+	// tell the dispatcher we handled it.  0 would mean we didn't deal with
+	// it and don't want it removed from the queue
+	return 1;
+}
+
+void kafkatcl_deliveryReportCallback (rd_kafka_t *rk, void *payload, size_t len, rd_kafka_resp_err_t err, void *opaque, void *msgOpaque) {
+}
+
+void kafkatcl_deliveryReportMessageCallback (rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void *opaque) {
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_logging_callback --
+ *
+ *    this routine is called by the kafka cpp-driver as a callback
+ *    when a log message has been received and rd_kafka_set_logger
+ *    has been done to register this callback
+ *
+ * Results:
+ *    an event is queued to the thread that started our conversation with
+ *    kafka
+ *
+ *----------------------------------------------------------------------
+ */
+void kafkatcl_logging_callback (const rd_kafka_t *rk, int level, const char *fac, const char *buf) {
+	kafkatcl_loggingEvent *evPtr;
+
+	Tcl_Interp *interp = loggingInterp;
+
+	evPtr = ckalloc (sizeof (kafkatcl_loggingEvent));
+	evPtr->event.proc = kafkatcl_logging_eventProc;
+	evPtr->interp = interp;
+
+	evPtr->level = level;
+
+	int len = strlen (fac);
+	evPtr->fac = ckalloc (len + 1);
+	strncpy (evPtr->fac, fac, len);
+
+	len = strlen (buf);
+	evPtr->buf = ckalloc (len + 1);
+	strncpy (evPtr->buf, buf, len);
+
+	Tcl_ThreadQueueEvent(kafkatcl_loggingCallbackThreadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_error_callback --
+ *
+ *    this routine is called by the kafka cpp-driver as a callback
+ *    when an error has been received and rd_kafka_set_error_cb
+ *    has been done to register this callback
+ *
+ * Results:
+ *    an event is queued to the thread that started our conversation with
+ *    kafka
+ *
+ *----------------------------------------------------------------------
+ */
+void kafkatcl_error_callback (rd_kafka_t *rk, int err, const char *reason, void *opaque) {
+	kafkatcl_objectClientData *ko = opaque;
+
+	kafkatcl_errorEvent *evPtr;
+
+	evPtr = ckalloc (sizeof (kafkatcl_errorEvent));
+
+	evPtr->event.proc = kafkatcl_error_eventProc;
+	evPtr->ko = ko;
+	evPtr->err = err;
+	evPtr->reason = reason;
+
+	Tcl_ThreadQueueEvent (ko->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_HEAD);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_stats_callback --
+ *
+ *    this routine is called by the kafka cpp-driver as a callback
+ *    when a stats message has been received and rd_kafka_set_stats_cb
+ *    has been done to register this callback
+ *
+ * Results:
+ *    an event is queued to the thread that started our conversation with
+ *    kafka
+ *
+ *----------------------------------------------------------------------
+ */
+int kafkatcl_stats_callback (rd_kafka_t *rk, char  *json, size_t jsonLen, void *opaque) {
+	kafkatcl_objectClientData *ko = opaque;
+
+	kafkatcl_statsEvent *evPtr;
+
+	evPtr = ckalloc (sizeof (kafkatcl_statsEvent));
+
+	evPtr->event.proc = kafkatcl_stats_eventProc;
+	evPtr->ko = ko;
+	evPtr->json = json;
+	evPtr->jsonLen = jsonLen;
+
+	Tcl_ThreadQueueEvent (ko->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_HEAD);
+	// return 0 == free the json pointer immediately, else return 1
+	return 1;
+}
+
 
 /*
  *----------------------------------------------------------------------
@@ -907,8 +1283,86 @@ void kafkatcl_statistics_callback (rd_kafka_t *rk, char *json, size_t json_len, 
 	kafkatcl_invoke_callback_with_argument (interp, ko->statisticsCallbackObj, arg) ;
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_consume_callback_eventProc --
+ *
+ *    this routine is called by the Tcl event handler to process error
+ *    callbacks we have gotten from the Kafka cpp-driver
+ *
+ * Results:
+ *    returns 1 to say we handled the event and the dispatcher can delete it
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_consume_callback_eventProc (Tcl_Event *tevPtr, int flags) {
+
+	// we got called with a Tcl_Event pointer but really it's a pointer to
+	// our kafkatcl_statsEvent structure that has the Tcl_Event and
+	// some other stuff that we need.
+	// Go get that.
+
+	kafkatcl_consumeCallbackEvent *evPtr = (kafkatcl_consumeCallbackEvent *)tevPtr;
+	int tclReturnCode;
+	kafkatcl_topicClientData *kt = evPtr->kt;
+	Tcl_Interp *interp = kt->kh->interp;
+
+	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage);
+
+	// even if this fails we still want the event taken off the queue
+	// this function will do the background error thing if there is a tcl
+	// error running the callback
+	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, kt->consumeCallbackObj, listObj);
+
+	// tell the dispatcher we handled it.  0 would mean we didn't deal with
+	// it and don't want it removed from the queue
+	return 1;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_consume_callback --
+ *
+ *    this routine is called by the kafka cpp-driver as a callback
+ *    designated by a call to rd_kafka_consume_callback to specify
+ *    a routine to be called when messages are available from a
+ *    topic consumer
+ *
+ * Results:
+ *    an event is queued to the thread that set up the callback
+ *
+ *----------------------------------------------------------------------
+ */
+
 void
 kafkatcl_consume_callback (rd_kafka_message_t *rkmessage, void *opaque) {
+	kafkatcl_topicClientData *kt = opaque;
+
+	kafkatcl_consumeCallbackEvent *evPtr;
+
+	evPtr = ckalloc (sizeof (kafkatcl_consumeCallbackEvent));
+
+	evPtr->event.proc = kafkatcl_consume_callback_eventProc;
+	evPtr->kt = kt;
+
+	// structure copy
+	evPtr->rkmessage = *rkmessage;
+
+	// then allocate and copy the payload and possibly the key; we will free
+	// all this in the event handler
+	evPtr->rkmessage.payload = ckalloc (rkmessage->len);
+	memcpy (evPtr->rkmessage.payload, rkmessage->payload, rkmessage->len);
+
+	if (rkmessage->key != NULL) {
+		evPtr->rkmessage.key = ckalloc (rkmessage->key_len);
+		memcpy (evPtr->rkmessage.key, rkmessage->key, rkmessage->key_len);
+	}
+
+	Tcl_ThreadQueueEvent (kt->kh->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
+	return;
 }
 /*
  *----------------------------------------------------------------------
@@ -990,7 +1444,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 				break;
 			}
 
-			resultCode = kafkatcl_message_to_tcl (interp, arrayName, rdm);
+			resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rdm);
 
 			break;
 		}
@@ -1018,7 +1472,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 				Tcl_DecrRefCount (kt->consumeCallbackObj);
 			}
 
-			kt->consumeCallbackObj = objv[3];
+			kt->consumeCallbackObj = objv[4];
 			Tcl_IncrRefCount (kt->consumeCallbackObj);
 
 			int count = rd_kafka_consume_callback (rkt, partition, timeoutMS, kafkatcl_consume_callback, kt);
@@ -1069,7 +1523,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			int i;
 
 			for (i = 0; i < gotCount; i++) {
-				resultCode = kafkatcl_message_to_tcl (interp, arrayName, &rkMessages[i]);
+				resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, &rkMessages[i]);
 
 				if (resultCode == TCL_ERROR) {
 					break;
@@ -1486,7 +1940,7 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 				break;
 			}
 
-			resultCode = kafkatcl_message_to_tcl (interp, arrayName, rdm);
+			resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rdm);
 
 			break;
 		}
@@ -1521,7 +1975,7 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			int i;
 
 			for (i = 0; i < gotCount; i++) {
-				resultCode = kafkatcl_message_to_tcl (interp, arrayName, &rkMessages[i]);
+				resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, &rkMessages[i]);
 
 				if (resultCode == TCL_ERROR) {
 					break;
@@ -1586,311 +2040,6 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 		}
     }
     return resultCode;
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_EventSetupProc --
- *    This routine is a required argument to Tcl_CreateEventSource
- *
- *    Normally here an extension that generates events does something
- *    to make sure the application wakes up when events of the desired
- *    type occur.
- *
- *    We don't need to do anything here because we generate Tcl events
- *    onto the originating thread via the callbacks invoked from the
- *   kafka cpp-driver library and that's (apparently) all Tcl
- *    needs to do its thing.
- *
- * Results:
- *    The program compiles.
- *
- *----------------------------------------------------------------------
- */
-void
-kafkatcl_EventSetupProc (ClientData data, int flags) {
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_EventCheckProc --
- *
- *    Normally here an extension that generates events would look at its
- *    tables or whatnot to see what needs to be generated as an event.
- *
- *    We don't need to do that because we generate Tcl events
- *    onto the originating thread via the callbacks invoked from the
- *    kafka cpp-driver library, so we handle it that way.
- *
- * Results:
- *    The program compiles.
- *
- *----------------------------------------------------------------------
- */
-void
-kafkatcl_EventCheckProc (ClientData data, int flags) {
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_logging_eventProc --
- *
- *    this routine is called by the Tcl event handler to process logging
- *    callbacks we have gotten from the Kafka cpp-driver
- *
- * Results:
- *    returns 1 to say we handled the event and the dispatcher can delete it
- *
- *----------------------------------------------------------------------
- */
-int
-kafkatcl_logging_eventProc (Tcl_Event *tevPtr, int flags) {
-
-	// we got called with a Tcl_Event pointer but really it's a pointer to
-	// our kafkatcl_loggingEvent structure that has the Tcl_Event and
-	// some other stuff that we need.
-	// Go get that.
-
-	kafkatcl_loggingEvent *evPtr = (kafkatcl_loggingEvent *)tevPtr;
-	int tclReturnCode;
-	Tcl_Interp *interp = evPtr->interp;
-#define KAFKATCL_LOG_CALLBACK_LISTCOUNT 6
-
-	Tcl_Obj *listObjv[KAFKATCL_LOG_CALLBACK_LISTCOUNT];
-
-	// probably won't happen but if we get a logging callback and have
-	// no callback object, return 1 saying we handled it and let the
-	// dispatcher delete the message NB this isn't exactly cool
-	if (kafkatcl_loggingCallbackObj == NULL) {
-		return 1;
-	}
-
-	// construct a list of key-value pairs representing the log message
-
-	listObjv[0] = Tcl_NewStringObj ("level", -1);
-	listObjv[1] = Tcl_NewIntObj (evPtr->level);
-
-	listObjv[2] = Tcl_NewStringObj ("facility", -1);
-	listObjv[3] = Tcl_NewStringObj (evPtr->fac, -1);
-
-	listObjv[4] = Tcl_NewStringObj ("message", -1);
-	listObjv[5] = Tcl_NewStringObj (evPtr->buf, -1);
-
-
-	Tcl_Obj *listObj = Tcl_NewListObj (KAFKATCL_LOG_CALLBACK_LISTCOUNT, listObjv);
-
-	ckfree (evPtr->fac);
-	evPtr->fac = NULL;
-
-	ckfree (evPtr->buf);
-	evPtr->buf = NULL;
-
-	// even if this fails we still want the event taken off the queue
-	// this function will do the background error thing if there is a tcl
-	// error running the callback
-	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, kafkatcl_loggingCallbackObj, listObj);
-	// tell the dispatcher we handled it.  0 would mean we didn't deal with
-	// it and don't want it removed from the queue
-	return 1;
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_stats_eventProc --
- *
- *    this routine is called by the Tcl event handler to process stats
- *    callbacks we have gotten from the Kafka cpp-driver
- *
- * Results:
- *    returns 1 to say we handled the event and the dispatcher can delete it
- *
- *----------------------------------------------------------------------
- */
-int
-kafkatcl_stats_eventProc (Tcl_Event *tevPtr, int flags) {
-
-	// we got called with a Tcl_Event pointer but really it's a pointer to
-	// our kafkatcl_statsEvent structure that has the Tcl_Event and
-	// some other stuff that we need.
-	// Go get that.
-
-	kafkatcl_statsEvent *evPtr = (kafkatcl_statsEvent *)tevPtr;
-	int tclReturnCode;
-	kafkatcl_objectClientData *ko = evPtr->ko;
-	Tcl_Interp *interp = ko->interp;
-
-	Tcl_Obj *jsonObj = Tcl_NewStringObj (evPtr->json, evPtr->jsonLen);
-
-
-	// even if this fails we still want the event taken off the queue
-	// this function will do the background error thing if there is a tcl
-	// error running the callback
-	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, ko->statisticsCallbackObj, jsonObj);
-	free (evPtr->json);
-	// tell the dispatcher we handled it.  0 would mean we didn't deal with
-	// it and don't want it removed from the queue
-	return 1;
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_error_eventProc --
- *
- *    this routine is called by the Tcl event handler to process error
- *    callbacks we have gotten from the Kafka cpp-driver
- *
- * Results:
- *    returns 1 to say we handled the event and the dispatcher can delete it
- *
- *----------------------------------------------------------------------
- */
-int
-kafkatcl_error_eventProc (Tcl_Event *tevPtr, int flags) {
-
-	// we got called with a Tcl_Event pointer but really it's a pointer to
-	// our kafkatcl_statsEvent structure that has the Tcl_Event and
-	// some other stuff that we need.
-	// Go get that.
-
-	kafkatcl_errorEvent *evPtr = (kafkatcl_errorEvent *)tevPtr;
-	int tclReturnCode;
-	kafkatcl_objectClientData *ko = evPtr->ko;
-	Tcl_Interp *interp = ko->interp;
-
-#define KAFKATCL_EVENT_CALLBACK_LISTCOUNT 4
-
-	Tcl_Obj *listObjv[KAFKATCL_LOG_CALLBACK_LISTCOUNT];
-
-	// construct a list of key-value pairs representing the log message
-
-	listObjv[0] = Tcl_NewStringObj ("err", -1);
-	listObjv[1] = Tcl_NewIntObj (evPtr->err);
-
-	listObjv[2] = Tcl_NewStringObj ("reason", -1);
-	listObjv[3] = Tcl_NewStringObj (evPtr->reason, -1);
-
-
-	Tcl_Obj *listObj = Tcl_NewListObj (KAFKATCL_EVENT_CALLBACK_LISTCOUNT, listObjv);
-
-	// even if this fails we still want the event taken off the queue
-	// this function will do the background error thing if there is a tcl
-	// error running the callback
-	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, ko->errorCallbackObj, listObj);
-
-	// tell the dispatcher we handled it.  0 would mean we didn't deal with
-	// it and don't want it removed from the queue
-	return 1;
-}
-
-
-void kafkatcl_deliveryReportCallback (rd_kafka_t *rk, void *payload, size_t len, rd_kafka_resp_err_t err, void *opaque, void *msgOpaque) {
-}
-
-void kafkatcl_deliveryReportMessageCallback (rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void *opaque) {
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_logging_callback --
- *
- *    this routine is called by the kafka cpp-driver as a callback
- *    when a log message has been received and rd_kafka_set_logger
- *    has been done to register this callback
- *
- * Results:
- *    an event is queued to the thread that started our conversation with
- *    kafka
- *
- *----------------------------------------------------------------------
- */
-void kafkatcl_logging_callback (const rd_kafka_t *rk, int level, const char *fac, const char *buf) {
-	kafkatcl_loggingEvent *evPtr;
-
-	Tcl_Interp *interp = loggingInterp;
-
-	evPtr = ckalloc (sizeof (kafkatcl_loggingEvent));
-	evPtr->event.proc = kafkatcl_logging_eventProc;
-	evPtr->interp = interp;
-
-	evPtr->level = level;
-
-	int len = strlen (fac);
-	evPtr->fac = ckalloc (len + 1);
-	strncpy (evPtr->fac, fac, len);
-
-	len = strlen (buf);
-	evPtr->buf = ckalloc (len + 1);
-	strncpy (evPtr->buf, buf, len);
-
-	Tcl_ThreadQueueEvent(kafkatcl_loggingCallbackThreadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_error_callback --
- *
- *    this routine is called by the kafka cpp-driver as a callback
- *    when an error has been received and rd_kafka_set_error_cb
- *    has been done to register this callback
- *
- * Results:
- *    an event is queued to the thread that started our conversation with
- *    kafka
- *
- *----------------------------------------------------------------------
- */
-void kafkatcl_error_callback (rd_kafka_t *rk, int err, const char *reason, void *opaque) {
-	kafkatcl_objectClientData *ko = opaque;
-
-	kafkatcl_errorEvent *evPtr;
-
-	evPtr = ckalloc (sizeof (kafkatcl_errorEvent));
-
-	evPtr->event.proc = kafkatcl_error_eventProc;
-	evPtr->ko = ko;
-	evPtr->err = err;
-	evPtr->reason = reason;
-
-	Tcl_ThreadQueueEvent (ko->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_HEAD);
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_stats_callback --
- *
- *    this routine is called by the kafka cpp-driver as a callback
- *    when a stats message has been received and rd_kafka_set_stats_cb
- *    has been done to register this callback
- *
- * Results:
- *    an event is queued to the thread that started our conversation with
- *    kafka
- *
- *----------------------------------------------------------------------
- */
-int kafkatcl_stats_callback (rd_kafka_t *rk, char  *json, size_t jsonLen, void *opaque) {
-	kafkatcl_objectClientData *ko = opaque;
-
-	kafkatcl_statsEvent *evPtr;
-
-	evPtr = ckalloc (sizeof (kafkatcl_statsEvent));
-
-	evPtr->event.proc = kafkatcl_stats_eventProc;
-	evPtr->ko = ko;
-	evPtr->json = json;
-	evPtr->jsonLen = jsonLen;
-
-	Tcl_ThreadQueueEvent (ko->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_HEAD);
-	// return 0 == free the json pointer immediately, else return 1
-	return 1;
 }
 
 /*

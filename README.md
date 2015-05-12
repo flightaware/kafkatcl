@@ -226,9 +226,25 @@ Start consuming the established topic for the specified *partition*, starting at
 
 Stop consuming messages for the established topic and specified *partition*, purging all messages currently in the local queue.
 
-* *$topic* **consume_callback**
+* *$topic* **consume_callback** *partition* *timeoutMS* *command*
 
-Not implemented yet.
+Repeated invoke *command* with one argument containing a list of key-value pairs for a received message, or an error.
+
+For each message received the callback command, *command*, will be invoked with a list containing key-value pairs corresponding to a received message, or representing an error.
+
+If the message was successfully received the fields will be *payload*, *partition*, *offset*, *topic* and, optionally, *key*.
+
+If an error is received the fields will be *error*, *code*, and *message* corresponding to the kafka error string returned by rd_kafka_err2str, the kafka error code and an error message.
+
+**consume_callback** returns the number of messages consumed.
+
+Note that you have to call *consume_callback* repeatedly and it may return 0 if no data is available at the time it is called.
+
+```
+consumer consume_callback 0 5000 callback
+```
+
+Consume messages from partition 0 by invoking the routine **callback** and timeout after a maximum of 5000 ms.
 
 * *$topic* **delete**
 

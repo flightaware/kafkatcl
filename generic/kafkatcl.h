@@ -120,4 +120,11 @@ typedef struct kafkatcl_statsEvent
 	size_t jsonLen;
 } kafkatcl_statsEvent;
 
+typedef struct kafkatcl_consumeCallbackEvent
+{
+    Tcl_Event event;
+	kafkatcl_topicClientData *kt;
+	rd_kafka_message_t rkmessage;
+} kafkatcl_consumeCallbackEvent;
+
 /* vim: set ts=4 sw=4 sts=4 noet : */
