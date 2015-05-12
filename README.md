@@ -222,23 +222,23 @@ Start consuming the established topic for the specified *partition* starting at 
 
 Start consuming the established topic for the specified *partition*, starting at offset *offset*, re-routing incoming messages to the specified kafkatcl *queue* command object.
 
+The queue should have been created with the *$handle* **create_queue** *command* method described elsewhere in this doc.
+
 * *$topic* **consume_stop** *partition*
 
 Stop consuming messages for the established topic and specified *partition*, purging all messages currently in the local queue.
 
 * *$topic* **consume_callback** *partition* *timeoutMS* *command*
 
-Repeated invoke *command* with one argument containing a list of key-value pairs for a received message, or an error.
+Repeated invoke *command* with one argument containing a list of key-value pairs for a received message, or a list of key-value pairs reporting an error.
 
-For each message received the callback command, *command*, will be invoked with a list containing key-value pairs corresponding to a received message, or representing an error.
-
-If the message was successfully received the fields will be *payload*, *partition*, *offset*, *topic* and, optionally, *key*.
+If a message was successfully received the fields will be *payload*, *partition*, *offset*, *topic* and, optionally, *key*.
 
 If an error is received the fields will be *error*, *code*, and *message* corresponding to the kafka error string returned by rd_kafka_err2str, the kafka error code and an error message.
 
 **consume_callback** returns the number of messages consumed.
 
-Note that you have to call *consume_callback* repeatedly and it may return 0 if no data is available at the time it is called.
+Note that you have to call *consume_callback* repeatedly and it may return 0 if no data is available at the time it is called.  Subsequent calls will return nonzero when messages are available.
 
 ```
 consumer consume_callback 0 5000 callback
@@ -249,6 +249,36 @@ Consume messages from partition 0 by invoking the routine **callback** and timeo
 * *$topic* **delete**
 
 Delete the topic object.
+
+Methods of kafka topic consumer queue object
+---
+Queue objects are created using *$handle* **create_queue** *command* and messages from consumer topics can be fed to a queue using the **consume_start_queue** method of a topic consumer object.
+
+Queue objects support the following methods:
+
+* *$queue* **consume** *timeoutMS* *array*
+
+As with consuming from a topic consumer, the **consume** method of a queue consuimes one message from the corresponding queue, within *timeout* milliseconds, into array *array*.  If there's an error, you get a Tcl error.
+
+Unlike with the **consume** method of a topic consumer, the partition is not specified at this point, as it has been specified when **consume_start_queue** was used to hook a consumer into a local queue.
+
+* *$queue* **consume_batch** *timeoutMS* *count* *array* *code*
+
+As with consuming a batch from a topic, reads up to *count* messages or however many have come in less than that without *timeout* milliseconds.
+
+For each message received the array *array* is filled with fields from the message containing the message *payload*, *partition*, *offset*, *topic* name and optional *key*, repeatedly executing *code* for each message received.
+
+* *$queue* **consume_callback** *timeout* *command*
+
+As with using a callback to consume from a topic, repeatedly invokes *command* with one argument containing a list of key-value pairs for a received message, or a list of key-value pairs reporting an error.
+
+If the message was successfully received then the pairs will be *payload*, *partition*, *offset*, *topic* and, optionally, *key*.
+
+If an error is received the fields will be *error*, *code*, and *message* corresponding to the kafka error string returned by rd_kafka_err2str, the kafka error code and an error message.
+
+**consume_callback** returns the number of messages consumed.
+
+Note that you have to invoke the *consume_callback* method repeatedly, and it will return 0 if no data is available at the time it is called.  Later, though, calling it again may well produce messages.
 
 Received Kafka Messages
 ---

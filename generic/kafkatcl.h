@@ -127,4 +127,11 @@ typedef struct kafkatcl_consumeCallbackEvent
 	rd_kafka_message_t rkmessage;
 } kafkatcl_consumeCallbackEvent;
 
+typedef struct kafkatcl_consumeCallbackQueueEvent
+{
+    Tcl_Event event;
+	kafkatcl_queueClientData *kq;
+	rd_kafka_message_t rkmessage;
+} kafkatcl_consumeCallbackQueueEvent;
+
 /* vim: set ts=4 sw=4 sts=4 noet : */
