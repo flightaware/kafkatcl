@@ -1398,6 +1398,14 @@ kafkatcl_consume_callback_queue_eventProc (Tcl_Event *tevPtr, int flags) {
 	// error running the callback
 	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, kq->consumeCallbackObj, listObj);
 
+	// free the payload
+	ckfree (evPtr->rkmessage.payload);
+
+	// free the key if there is one
+	if (evPtr->rkmessage.key != NULL) {
+		ckfree (evPtr->rkmessage.key);
+	}
+
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
 	// it and don't want it removed from the queue
 	return 1;
@@ -1600,14 +1608,14 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 
 			Tcl_Obj *codeObj = objv[6];
 
-			rd_kafka_message_t *rkMessages;
+			rd_kafka_message_t **rkMessages = ckalloc (sizeof (rd_kafka_message_t *) * count);
 
-			int gotCount = rd_kafka_consume_batch (rkt, partition, timeoutMS, &rkMessages, count);
+			int gotCount = rd_kafka_consume_batch (rkt, partition, timeoutMS, rkMessages, count);
 
 			int i;
 
 			for (i = 0; i < gotCount; i++) {
-				resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, &rkMessages[i]);
+				resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rkMessages[i]);
 
 				if (resultCode == TCL_ERROR) {
 					break;
@@ -1625,6 +1633,11 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 				}
 			}
 
+			ckfree (rkMessages);
+
+			if (resultCode == TCL_OK) {
+				Tcl_SetObjResult (interp, Tcl_NewIntObj (gotCount));
+			}
 			break;
 		}
 
