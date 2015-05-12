@@ -308,7 +308,7 @@ The name of the topic.
 Setting up a consumer
 ---
 
-Create a kafka object, from that use the *create_consumer* method to create a kafka consumer-creating object.  From that create a topic consuming object to read messages.
+Create a kafka object, from that use the *create_consumer* method to create a kafka consumer-creating object.  From that create a topic-consuming object to read messages.
 
 ```tcl
 package require kafka
@@ -326,6 +326,62 @@ consumer consume 0 2000 foo
 parray foo
 ```
 
+Setting up a consumer with callbacks
+---
+
+Create a kafka object, from that use the *create_consumer* method to create a kafka consumer-creating object.  From that create a topic consuming object to read messages and invoke it in the callback manner.
+
+```
+package require kafka
+
+set master [::kafka::kafka create #auto]
+
+set consumer [$master create_consumer #auto]
+$consumer add_brokers 127.0.0.1
+
+set topic [$consumer new_topic #auto flightplans.production]
+
+$topic consume_start 0 beginning
+
+proc callback {list} {
+	puts $list
+}
+
+set rowsReceived [$topic consume_callback 0 5000 callback]
+```
+
+Setting up a consumer and consume to a queue with callbacks
+---
+
+Create a kafka object, from that use the *create_consumer* method to create a kafka consumer-creating object.  From that create a topic consuming object to read messages and invoke it in the callback manner.
+
+```
+package require kafka
+
+set master [::kafka::kafka create #auto]
+
+set consumer [$master create_consumer #auto]
+$master add_brokers 127.0.0.1
+
+set myQueue [$consumer create_queue #auto]
+
+set topic [$consumer new_topic #auto flightplans.production]
+
+$topic consume_start_queue 0 beginning $myQueue
+
+proc callback {list} {
+	puts $list
+}
+
+proc pass {} {
+	puts [$::myQueue consume_callback 5000 callback]
+}
+
+pass
+
+```
+
+
 Setting up a producer
 ---
 
@@ -342,7 +398,7 @@ kafka_producer add_brokers 127.0.0.1
 
 kafka_producer new_topic producer test
 
-producer produce_one $partition $payload $key
+producer produce $partition $payload $key
 ```
 
 Misc Stuff
