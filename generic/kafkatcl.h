@@ -37,7 +37,6 @@ typedef struct kafkatcl_objectClientData
     Tcl_Command cmdToken;
 	Tcl_ThreadId threadId;
 	Tcl_Obj *loggingCallbackObj;
-	Tcl_Obj *deliveryReportMessageCallbackObj;
 	Tcl_Obj *deliveryReportCallbackObj;
 	Tcl_Obj *errorCallbackObj;
 	Tcl_Obj *statisticsCallbackObj;
@@ -77,20 +76,9 @@ typedef struct kafkatcl_queueClientData
 typedef struct kafkatcl_deliveryReportEvent
 {
     Tcl_Event event;
-    Tcl_Interp *interp;
-	rd_kafka_t *rk;
-	void *payload;
-	size_t len;
-	rd_kafka_resp_err_t err;
+	kafkatcl_topicClientData *kt;
+	rd_kafka_message_t rkmessage;
 } kafkatcl_deliveryReportEvent;
-
-typedef struct kafkatcl_deliveryReportMessageEvent
-{
-    Tcl_Event event;
-    Tcl_Interp *interp;
-	rd_kafka_t *rk;
-	const rd_kafka_message_t *rkmessage;
-} kafkatcl_deliveryReportMessageEvent;
 
 typedef struct kafkatcl_errorEvent
 {

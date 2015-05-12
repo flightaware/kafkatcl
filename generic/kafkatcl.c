@@ -1121,12 +1121,6 @@ kafkatcl_error_eventProc (Tcl_Event *tevPtr, int flags) {
 	return 1;
 }
 
-void kafkatcl_deliveryReportCallback (rd_kafka_t *rk, void *payload, size_t len, rd_kafka_resp_err_t err, void *opaque, void *msgOpaque) {
-}
-
-void kafkatcl_deliveryReportMessageCallback (rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void *opaque) {
-}
-
 /*
  *----------------------------------------------------------------------
  *
@@ -1226,6 +1220,43 @@ int kafkatcl_stats_callback (rd_kafka_t *rk, char  *json, size_t jsonLen, void *
 	return 1;
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_delivery_report_eventProc --
+ *
+ *    this routine is called by the Tcl event handler to process delivery
+ *    report callbacks we have gotten from the Kafka cpp-driver
+ *
+ * Results:
+ *    returns 1 to say we handled the event and the dispatcher can delete it
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_delivery_report_eventProc (Tcl_Event *tevPtr, int flags) {
+
+	// we got called with a Tcl_Event pointer but really it's a pointer to
+	// our kafkatcl_statsEvent structure that has the Tcl_Event and
+	// some other stuff that we need.
+	// Go get that.
+
+	kafkatcl_deliveryReportEvent *evPtr = (kafkatcl_deliveryReportEvent *)tevPtr;
+	int tclReturnCode;
+	kafkatcl_topicClientData *kt = evPtr->kt;
+	Tcl_Interp *interp = kt->kh->interp;
+
+	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage);
+
+	// even if this fails we still want the event taken off the queue
+	// this function will do the background error thing if there is a tcl
+	// error running the callback
+	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, kt->consumeCallbackObj, listObj);
+
+	// tell the dispatcher we handled it.  0 would mean we didn't deal with
+	// it and don't want it removed from the queue
+	return 1;
+}
 
 /*
  *----------------------------------------------------------------------
@@ -1241,24 +1272,33 @@ int kafkatcl_stats_callback (rd_kafka_t *rk, char  *json, size_t jsonLen, void *
  *
  *----------------------------------------------------------------------
  */
-void kafkatcl_delivery_report_callback (rd_kafka_t *rk, void *payload, size_t len, rd_kafka_resp_err_t err, void *opaque, void *msgOpaque) {
-}
+void kafkatcl_delivery_report_callback (rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void *opaque) {
+	kafkatcl_topicClientData *kt = opaque;
 
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_delivery_report_message_callback --
- *
- *    this routine is called by the kafka cpp-driver as a callback
- *    when a delivery report has been received and rd_kafka_set_dr_cb
- *    has been done to register this callback
- *
- * Results:
- *    an event is queued to the thread that set up the callback
- *
- *----------------------------------------------------------------------
- */
-void kafkatcl_delivery_report_message_callback (rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void *opaque) {
+	kafkatcl_deliveryReportEvent *evPtr;
+
+	// NB bears too much in common with kafkatcl_consume_callback
+
+	evPtr = ckalloc (sizeof (kafkatcl_deliveryReportEvent));
+
+	evPtr->event.proc = kafkatcl_delivery_report_eventProc;
+	evPtr->kt = kt;
+
+	// structure copy
+	evPtr->rkmessage = *rkmessage;
+
+	// then allocate and copy the payload and possibly the key; we will free
+	// all this in the event handler
+	evPtr->rkmessage.payload = ckalloc (rkmessage->len);
+	memcpy (evPtr->rkmessage.payload, rkmessage->payload, rkmessage->len);
+
+	if (rkmessage->key != NULL) {
+		evPtr->rkmessage.key = ckalloc (rkmessage->key_len);
+		memcpy (evPtr->rkmessage.key, rkmessage->key, rkmessage->key_len);
+	}
+
+	Tcl_ThreadQueueEvent (kt->kh->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
+	return;
 }
 
 /*
@@ -2862,10 +2902,9 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
         "create_producer",
         "create_consumer",
 		"topic_config",
-        "set_delivery_report_callback",
-        "set_delivery_report_message_callback",
-        "set_error_callback",
-		"set_statistics_callback",
+        "delivery_report_callback",
+        "error_callback",
+		"statistics_callback",
 		"logger",
 		"delete",
         NULL
@@ -2876,7 +2915,6 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
         OPT_CREATE_PRODUCER,
         OPT_CREATE_CONSUMER,
 		OPT_TOPIC_CONFIG,
-        OPT_SET_DELIVERY_REPORT_CALLBACK,
         OPT_SET_DELIVERY_REPORT_MESSAGE_CALLBACK,
         OPT_SET_ERROR_CALLBACK,
         OPT_SET_STATISTICS_CALLBACK,
@@ -2953,23 +2991,6 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 				return TCL_ERROR;
 			}
 
-			if (ko->deliveryReportMessageCallbackObj != NULL) {
-				Tcl_DecrRefCount (ko->deliveryReportMessageCallbackObj);
-			}
-
-			ko->deliveryReportMessageCallbackObj = objv[3];
-			Tcl_IncrRefCount (ko->deliveryReportMessageCallbackObj);
-
-			rd_kafka_conf_set_dr_msg_cb (ko->conf, kafkatcl_deliveryReportMessageCallback);
-			break;
-		}
-
-		case OPT_SET_DELIVERY_REPORT_CALLBACK: {
-			if (objc != 3) {
-				Tcl_WrongNumArgs (interp, 2, objv, "command");
-				return TCL_ERROR;
-			}
-
 			if (ko->deliveryReportCallbackObj != NULL) {
 				Tcl_DecrRefCount (ko->deliveryReportCallbackObj);
 			}
@@ -2977,7 +2998,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			ko->deliveryReportCallbackObj = objv[3];
 			Tcl_IncrRefCount (ko->deliveryReportCallbackObj);
 
-			rd_kafka_conf_set_dr_cb (ko->conf, kafkatcl_deliveryReportCallback);
+			rd_kafka_conf_set_dr_msg_cb (ko->conf, kafkatcl_delivery_report_callback);
 			break;
 		}
 
@@ -3189,7 +3210,6 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 			rd_kafka_topic_conf_set_opaque (ko->topicConf, ko);
 
 			ko->loggingCallbackObj = NULL;
-			ko->deliveryReportMessageCallbackObj = NULL;
 			ko->deliveryReportCallbackObj = NULL;
 			ko->errorCallbackObj = NULL;
 			ko->statisticsCallbackObj = NULL;

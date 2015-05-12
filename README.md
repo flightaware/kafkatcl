@@ -110,15 +110,17 @@ If invoked without arguments returns a list of the topic configuration propertie
 
 If key and value are present sets a single kafka topic configuration property  by specifying the property name and value.  Returns a Tcl error if it fails.
 
-* *$kafka* **set_delivery_report_callback** *command*
+* *$kafka* **delivery_report_callback** *command*
 
 Invoke *command* when kafka cpp-driver delivery report callbacks are received.
 
-* *$kafka* **set_error_callback** *command*
+Data returned is the same for *consume_callback*.
+
+* *$kafka* **error_callback** *command*
 
 Invoke *command* when kafka cpp-driver error callbacks are received.
 
-* *$kafka* **set_statistics_callback** *command*
+* *$kafka* **statistics_callback** *command*
 
 Invoke *command* when kafka cpp-driver statistics callbacks are received.
 
