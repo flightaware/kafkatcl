@@ -67,12 +67,14 @@ Returns the kafka version as a string, like 0.8.6.
 
 * **kafka::kafka** **create** *command*
 
-Create a kafka object.
+Create a kafka object.  If *command* is **#auto** then an handle with a unique name such as **kafka_handle0** will be created for you.  Of course with that usage you'd want to capture the handle name in a variable or something.
 
 ```tcl
 set kafka [::kafka::kafka create #auto]
 
-$kafka exec "insert into foo ..."
+$kafka logger callback klog
+
+set consumer [$kafka create_consumer #auto]
 ```
 
 ...or...
@@ -80,7 +82,9 @@ $kafka exec "insert into foo ..."
 ```tcl
 ::kafka::kafka create kafka]
 
-kafka exec "insert into foo ..."
+kafka logger callback klog
+
+kafka create_consumer consumer
 ```
 
 Methods of kafka interface object
@@ -88,21 +92,23 @@ Methods of kafka interface object
 
 * *$kafka* **config** *?key value?*
 
-If invoked without arguments, returns a list of the configuration as key-value pairs suitable for passing to *array set* or whatever.  If invoked with a key and value, sets the key-value pair into the configuration.
+If invoked without arguments, returns a list of the configuration properties and values suitable for passing to *array set* or whatever.  If invoked with a key and value, sets the key-value pair into the configuration properties.
 
 Returns a Tcl error if it fails.
 
 * *$kafka* **create_producer** *cmdName*
 
-Create a kafkatcl producer handle object.
+Create a kafkatcl producer handle object.  the producer handle object is used to establish communications with the kafka cluster and eventually create topic producer objects.
 
 * *$kafka* **create_consumer** *cmdName*
 
-Create a kafkatcl consumer handle object.
+Create a kafkatcl consumer handle object.  The consumer handle object is used to connect with the kafka cluster and eventually create topic consumer topics.
 
-* *$kafka* **set_topic_conf** *key* *value*
+* *$kafka* **topic_config** *?key value?*
 
-Set a single kafka topic configuration property  by specifying the property name and value.  Returns a Tcl error if it fails.
+If invoked without arguments returns a list of the topic configuration properties and values.
+
+If key and value are present sets a single kafka topic configuration property  by specifying the property name and value.  Returns a Tcl error if it fails.
 
 * *$kafka* **set_delivery_report_callback** *command*
 
@@ -122,9 +128,6 @@ The command will be invoked with one argument, which is the JSON provided by the
 
 Not yet implemented and may not be implemented.
 
-* *$kafka* **get_topic_configuration**  *array*
-
-Store the kafka object's topic configuration properties into the specified array.
 * *$handle* **logger** **syslog**
 
 Log kafka logger messages to the system log.
@@ -190,7 +193,7 @@ Delete the handle object, destroying the command.
 Methods of kafka topic producer object
 ---
 
-* *$topic* **produce_one** *partition* *payload* *?key?*
+* *$topic* **produce** *partition* *payload* *?key?*
 
 Produce one message into the specified partition.  If there's an error, you get a Tcl error.  IF the partition is -1 then the unassigned partition is specified, indicating that kafka should partition using the configured or default partitioner.
 
@@ -199,7 +202,7 @@ If *key* is specified then it's passed to the topic partitioner as well as sent 
 Methods of kafka topic consumer object
 ---
 
-* *$topic* **consume_one** *partition* *timeout* *array*
+* *$topic* **consume** *partition* *timeout* *array*
 
 Consume one message from the specified partition without *timeout* milliseconds into array *array*.  If there's an error, you get a Tcl error.
 
@@ -267,12 +270,13 @@ package require kafka
 ::kafka::kafka create kafka_master
 
 kafka_master create_consumer kafka_consumer
+kafka_consumer add_brokers 127.0.0.1
 
 kafka_consumer new_topic consumer test
 
 consumer consume_start 0 0
 
-consumer consume_one 0 2000 foo
+consumer consume 0 2000 foo
 parray foo
 ```
 
@@ -287,8 +291,24 @@ package require kafka
 ::kafka::kafka create kafka_master
 
 kafka_master create_producer kafka_producer
+kafka_producer add_brokers 127.0.0.1
+
 
 kafka_producer new_topic producer test
 
 producer produce_one $partition $payload $key
+```
+
+Misc Stuff
+---
+
+Sample output of **kafka_master config**:
+
+```
+client.id rdkafka message.max.bytes 4000000 receive.message.max.bytes 100000000 metadata.request.timeout.ms 60000 topic.metadata.refresh.interval.ms 10000 topic.metadata.refresh.fast.cnt 10 topic.metadata.refresh.fast.interval.ms 250 topic.metadata.refresh.sparse false socket.timeout.ms 60000 socket.send.buffer.bytes 0 socket.receive.buffer.bytes 0 socket.keepalive.enable false socket.max.fails 3 broker.address.ttl 300000 broker.address.family any statistics.interval.ms 0 log_cb 0x802e0e850 log_level 6 socket_cb 0x802e13560 open_cb 0x802e21fd0 opaque 0x801ec6910 internal.termination.signal 0 queued.min.messages 100000 queued.max.messages.kbytes 1000000 fetch.wait.max.ms 100 fetch.message.max.bytes 1048576 fetch.min.bytes 1 fetch.error.backoff.ms 500 queue.buffering.max.messages 100000 queue.buffering.max.ms 1000 message.send.max.retries 2 retry.backoff.ms 100 compression.codec none batch.num.messages 1000 delivery.report.only.error false
+```
+
+Sample output of **kafka_master topic_config**:
+```
+request.required.acks 1 enforce.isr.cnt 0 request.timeout.ms 5000 message.timeout.ms 300000 produce.offset.report false opaque 0x801ec6910 auto.commit.enable true auto.commit.interval.ms 60000 auto.offset.reset largest offset.store.path . offset.store.sync.interval.ms -1 offset.store.method file consume.callback.max.messages 0
 ```

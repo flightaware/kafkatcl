@@ -2608,13 +2608,12 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
         "config",
         "create_producer",
         "create_consumer",
-		"set_topic_conf",
+		"topic_config",
         "set_delivery_report_callback",
         "set_delivery_report_message_callback",
         "set_error_callback",
 		"set_statistics_callback",
 		"set_socket_callback",
-		"get_topic_configuration",
 		"logger",
 		"delete",
         NULL
@@ -2624,13 +2623,12 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
         OPT_CONFIG,
         OPT_CREATE_PRODUCER,
         OPT_CREATE_CONSUMER,
-		OPT_SET_TOPIC_CONF,
+		OPT_TOPIC_CONFIG,
         OPT_SET_DELIVERY_REPORT_CALLBACK,
         OPT_SET_DELIVERY_REPORT_MESSAGE_CALLBACK,
         OPT_SET_ERROR_CALLBACK,
         OPT_SET_STATISTICS_CALLBACK,
 		OPT_SET_SOCKET_CALLBACK,
-		OPT_GET_TOPIC_CONFIGURATION,
 		OPT_LOGGER,
 		OPT_DELETE
     };
@@ -2662,6 +2660,22 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			break;
 		}
 
+		case OPT_TOPIC_CONFIG: {
+			if ((objc != 2) && (objc != 4)) {
+				Tcl_WrongNumArgs (interp, 2, objv, "?name value?");
+				return TCL_ERROR;
+			}
+
+			if (objc == 2) {
+				resultCode = kafkatcl_topic_conf_to_list (interp, ko->topicConf);
+			} else {
+				char *name = Tcl_GetString (objv[2]);
+				char *value = Tcl_GetString (objv[3]);
+				resultCode = kafkatcl_set_topic_conf (ko, name, value);
+			}
+			break;
+		}
+
 		case OPT_CREATE_CONSUMER:
 		case OPT_CREATE_PRODUCER: {
 			rd_kafka_type_t type;
@@ -2679,18 +2693,6 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 
 			char *cmdName = Tcl_GetString (objv[2]);
 			resultCode = kafkatcl_createHandleObjectCommand (ko, cmdName, type);
-			break;
-		}
-
-		case OPT_SET_TOPIC_CONF: {
-			if (objc != 4) {
-				Tcl_WrongNumArgs (interp, 2, objv, "name value");
-				return TCL_ERROR;
-			}
-
-			char *name = Tcl_GetString (objv[2]);
-			char *value = Tcl_GetString (objv[3]);
-			resultCode = kafkatcl_set_topic_conf (ko, name, value);
 			break;
 		}
 
@@ -2763,17 +2765,6 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 		}
 
 		case OPT_SET_SOCKET_CALLBACK: {
-			break;
-		}
-
-		case OPT_GET_TOPIC_CONFIGURATION: {
-			if (objc != 3) {
-				Tcl_WrongNumArgs (interp, 2, objv, "array");
-				return TCL_ERROR;
-			}
-
-			char *arrayName = Tcl_GetString (objv[2]);
-			resultCode = kafkatcl_topic_conf_to_array (interp, arrayName, ko->topicConf);
 			break;
 		}
 
