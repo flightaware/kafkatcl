@@ -67,8 +67,6 @@ kafkatcl_topicObjectDelete (ClientData clientData)
 		Tcl_DecrRefCount (kt->consumeCallbackObj);
 	}
 
-	rd_kafka_topic_conf_destroy (kt->topicConf);
-
     ckfree((char *)clientData);
 }
 
@@ -1639,7 +1637,6 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
         "consume_start_queue",
         "consume_stop",
         "consume_callback",
-		"config",
         "delete",
         NULL
     };
@@ -1651,7 +1648,6 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 		OPT_CONSUME_START_QUEUE,
 		OPT_CONSUME_STOP,
 		OPT_CONSUME_CALLBACK,
-		OPT_TOPIC_CONFIG,
 		OPT_DELETE
     };
 
@@ -1882,12 +1878,6 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			break;
 		}
 
-		case OPT_TOPIC_CONFIG: {
-			resultCode = kafkatcl_handle_topic_conf (interp, kt->topicConf, objc - 2, &objv[2]);
-			break;
-		}
-
-
 		case OPT_DELETE: {
 			if (objc != 2) {
 				Tcl_WrongNumArgs (interp, 2, objv, "");
@@ -1926,7 +1916,6 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
     static CONST char *options[] = {
         "produce",
         "produce_batch",
-		"topic_config",
         "delete",
         NULL
     };
@@ -1934,7 +1923,6 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
     enum options {
 		OPT_PRODUCE,
 		OPT_PRODUCE_BATCH,
-		OPT_TOPIC_CONFIG,
 		OPT_DELETE
     };
 
@@ -2051,11 +2039,6 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			break;
 		}
 
-		case OPT_TOPIC_CONFIG: {
-			resultCode = kafkatcl_handle_topic_conf (interp, kt->topicConf, objc - 2, &objv[2]);
-			break;
-		}
-
 		case OPT_DELETE: {
 			if (objc != 2) {
 				Tcl_WrongNumArgs (interp, 2, objv, "");
@@ -2090,7 +2073,7 @@ kafkatcl_createTopicObjectCommand (kafkatcl_handleClientData *kh, char *cmdName,
 	Tcl_Interp *interp = kh->interp;
 	Tcl_ObjCmdProc *proc = NULL;
 
-	rd_kafka_topic_t *rkt = rd_kafka_topic_new (kh->rk, topic, kh->ko->topicConf);
+	rd_kafka_topic_t *rkt = rd_kafka_topic_new (kh->rk, topic, kh->topicConf);
 	if (rkt == NULL) {
 		return kafktcl_errno_to_tcl_error (interp);
 	}
@@ -2117,7 +2100,6 @@ kafkatcl_createTopicObjectCommand (kafkatcl_handleClientData *kh, char *cmdName,
 	kt->rkt = rkt;
 	kt->kh = kh;
 	kt->consumeCallbackObj = NULL;
-	kt->topicConf = rd_kafka_topic_conf_dup (kh->topicConf);
 
 #define TOPIC_STRING_FORMAT "kafka_topic%lu"
 	// if cmdName is #auto, generate a unique name for the object

@@ -108,7 +108,7 @@ Create a kafkatcl consumer handle object.  The consumer handle object is used to
 
 * *$kafka* **topic_config** *?key value?*
 
-If invoked without arguments returns a list of the topic configuration properties and values.
+If invoked without arguments returns a list of the default topic configuration properties and values.
 
 As with **config**, if invoked with one or more pairs of property and value arguments, sets the value of each property-value pair into the topic configuration properties.
 
@@ -145,22 +145,24 @@ After specifying this, when logging messages are received, *command* will be inv
 Logging callbacks may only be directed to one of the syslog, stderr or the callback command.  Changing to a new one ends the use of the previous one.
 
 
-Methods of kafka handle object
+Methods of kafka consumer and producer handle object
 ---
 
 * *$handle* **name**
 
 Return the kafka name of the handle.
 
-* *$kafka* **config** *?key value?*
+* *$handle* **config** *?key value?*
 
 The kafka handle object inherits a copy of the topic config from the master object.
 
-**config** provides a way to examine and alter the topic configuration properties.  (These properties are copied to to producer/consumer objects when they are created and from there to topics.)
+**config** provides a way to examine and alter the handle's topic configuration properties.  (These properties are accessed when the producer/consumer objects are created.)
 
 If invoked without arguments returns a list of the topic configuration properties and values.
 
 If invoked with one or more pairs of property and value arguments, sets the value of each property-value pair into the topic configuration properties.
+
+When a topic-producing or topic-consuming object is created, the topic config is set from the corresponding handle object that created the producer or consumer object.
 
 * *$handle* **new_topic** *commandName* *topic*
 
@@ -215,7 +217,7 @@ Produce a list of messages into the specified partition.  The list is a list of 
 
 * *$topic* **config** *?key value? ...*
 
-Obtain a list of the topic configuration or set one or more property-value pairs into the topic configuration.
+Works the same as **config** for consumer handle (topic-creating) objects.
 
 * *$topic* **delete**
 
@@ -263,10 +265,6 @@ If an error is received the fields will be *error*, *code*, and *message* corres
 **consume_callback** returns the number of messages consumed.
 
 Note that you have to call *consume_callback* repeatedly and it may return 0 if no data is available at the time it is called.  Subsequent calls will return nonzero when messages are available.
-
-* *$topic* **config** *?key value? ...*
-
-Obtain a list of the topic configuration or set one or more property-value pairs into the topic configuration.
 
 * *$topic* **delte**
 

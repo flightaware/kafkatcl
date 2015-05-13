@@ -59,7 +59,6 @@ typedef struct kafkatcl_topicClientData
 {
     int kafka_topic_magic;
 	rd_kafka_topic_t *rkt;
-	rd_kafka_topic_conf_t *topicConf;
 	kafkatcl_handleClientData *kh;
 	Tcl_Command cmdToken;
 	Tcl_Obj *consumeCallbackObj;
