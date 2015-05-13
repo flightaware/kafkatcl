@@ -106,7 +106,7 @@ Create a kafkatcl producer handle object.  the producer handle object is used to
 
 Create a kafkatcl consumer handle object.  The consumer handle object is used to connect with the kafka cluster and eventually create topic consumer topics.
 
-* *$kafka* **topic_config** *?key value?*
+* *$kafka* **topic_config** *?key value? ...*
 
 If invoked without arguments returns a list of the default topic configuration properties and values.
 
@@ -163,6 +163,10 @@ If invoked without arguments returns a list of the topic configuration propertie
 If invoked with one or more pairs of property and value arguments, sets the value of each property-value pair into the topic configuration properties.
 
 When a topic-producing or topic-consuming object is created, the topic config is set from the corresponding handle object that created the producer or consumer object.
+
+```
+    $handle config compression.codec gzip
+```
 
 * *$handle* **new_topic** *commandName* *topic*
 
