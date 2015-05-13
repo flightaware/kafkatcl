@@ -67,6 +67,8 @@ kafkatcl_topicObjectDelete (ClientData clientData)
 		Tcl_DecrRefCount (kt->consumeCallbackObj);
 	}
 
+	rd_kafka_topic_conf_destroy (kt->topicConf);
+
     ckfree((char *)clientData);
 }
 
@@ -100,6 +102,8 @@ kafkatcl_handleObjectDelete (ClientData clientData)
 	if (kh->metadata != NULL) {
 		rd_kafka_metadata_destroy (kh->metadata);
 	}
+
+	rd_kafka_topic_conf_destroy (kh->topicConf);
 
     ckfree((char *)clientData);
 }
@@ -1241,6 +1245,7 @@ kafkatcl_delivery_report_eventProc (Tcl_Event *tevPtr, int flags) {
 	// some other stuff that we need.
 	// Go get that.
 
+printf("deliver event proc called\n");
 	kafkatcl_deliveryReportEvent *evPtr = (kafkatcl_deliveryReportEvent *)tevPtr;
 	int tclReturnCode;
 	kafkatcl_objectClientData *ko = evPtr->ko;
@@ -1282,6 +1287,7 @@ kafkatcl_delivery_report_eventProc (Tcl_Event *tevPtr, int flags) {
  *----------------------------------------------------------------------
  */
 void kafkatcl_delivery_report_callback (rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void *opaque) {
+printf("kafkatcl_delivery_report_callback invoked\n");
 	kafkatcl_objectClientData *ko = opaque;
 
     assert (ko->kafka_object_magic == KAFKA_OBJECT_MAGIC);
@@ -1309,6 +1315,7 @@ void kafkatcl_delivery_report_callback (rd_kafka_t *rk, const rd_kafka_message_t
 	}
 
 	Tcl_ThreadQueueEvent (ko->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_HEAD);
+printf("deliver report callback queued\n");
 	return;
 }
 
@@ -1510,6 +1517,104 @@ kafkatcl_consume_callback_queue (rd_kafka_message_t *rkmessage, void *opaque) {
 /*
  *----------------------------------------------------------------------
  *
+ * kafkatcl_set_conf --
+ *
+ *    given an object client data and a topic config var and value,
+ *		set the topic configuration property
+ *
+ *    returns an error if rd_kafka_conf_set returns an error
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_set_conf (kafkatcl_objectClientData *ko, char *name, char *value) {
+	Tcl_Interp *interp = ko->interp;
+	char errStr[256];
+
+	rd_kafka_conf_res_t res = rd_kafka_conf_set (ko->conf, name, value, errStr, sizeof(errStr));
+
+	if (res != RD_KAFKA_CONF_OK) {
+		Tcl_SetObjResult (interp, Tcl_NewStringObj (errStr, -1));
+		return TCL_ERROR;
+	}
+	return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_set_topic_conf --
+ *
+ *    given an object client data and a topic config var and value,
+ *		set the topic configuration property
+ *
+ *    returns an error if rd_kafka_topic_conf_set returns an error
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_set_topic_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf, char *name, char *value) {
+	char errStr[256];
+
+	rd_kafka_conf_res_t res = rd_kafka_topic_conf_set (topicConf, name, value, errStr, sizeof(errStr));
+
+	if (res != RD_KAFKA_CONF_OK) {
+		Tcl_SetObjResult (interp, Tcl_NewStringObj (errStr, -1));
+		return TCL_ERROR;
+	}
+	return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_handle_topic_conf --
+ *
+ *    given an object client data and a topic config var and value,
+ *		set the topic configuration property
+ *
+ *    returns an error if rd_kafka_topic_conf_set returns an error
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_handle_topic_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf, int objc, Tcl_Obj *CONST objv[]) {
+	if (objc % 2 != 0) {
+		Tcl_WrongNumArgs (interp, 2, objv, "?name value ...?");
+		return TCL_ERROR;
+	}
+
+	if (objc == 0) {
+		return kafkatcl_topic_conf_to_list (interp, topicConf);
+	}
+
+	int i;
+	int resultCode = TCL_OK;
+	for (i = 0; i < objc; i++) {
+		char *name = Tcl_GetString (objv[i]);
+		char *value = Tcl_GetString (objv[i + 1]);
+
+		resultCode = kafkatcl_set_topic_conf (interp, topicConf, name, value);
+
+		if (resultCode == TCL_ERROR) {
+			break;
+		}
+	}
+	return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
  * kafkatcl_topicConsumerObjectObjCmd --
  *
  *    dispatches the subcommands of a kafkatcl batch-handling command
@@ -1534,6 +1639,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
         "consume_start_queue",
         "consume_stop",
         "consume_callback",
+		"config",
         "delete",
         NULL
     };
@@ -1545,6 +1651,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 		OPT_CONSUME_START_QUEUE,
 		OPT_CONSUME_STOP,
 		OPT_CONSUME_CALLBACK,
+		OPT_TOPIC_CONFIG,
 		OPT_DELETE
     };
 
@@ -1775,6 +1882,12 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			break;
 		}
 
+		case OPT_TOPIC_CONFIG: {
+			resultCode = kafkatcl_handle_topic_conf (interp, kt->topicConf, objc - 2, &objv[2]);
+			break;
+		}
+
+
 		case OPT_DELETE: {
 			if (objc != 2) {
 				Tcl_WrongNumArgs (interp, 2, objv, "");
@@ -1813,6 +1926,7 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
     static CONST char *options[] = {
         "produce",
         "produce_batch",
+		"topic_config",
         "delete",
         NULL
     };
@@ -1820,6 +1934,7 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
     enum options {
 		OPT_PRODUCE,
 		OPT_PRODUCE_BATCH,
+		OPT_TOPIC_CONFIG,
 		OPT_DELETE
     };
 
@@ -1936,6 +2051,11 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			break;
 		}
 
+		case OPT_TOPIC_CONFIG: {
+			resultCode = kafkatcl_handle_topic_conf (interp, kt->topicConf, objc - 2, &objv[2]);
+			break;
+		}
+
 		case OPT_DELETE: {
 			if (objc != 2) {
 				Tcl_WrongNumArgs (interp, 2, objv, "");
@@ -1997,6 +2117,7 @@ kafkatcl_createTopicObjectCommand (kafkatcl_handleClientData *kh, char *cmdName,
 	kt->rkt = rkt;
 	kt->kh = kh;
 	kt->consumeCallbackObj = NULL;
+	kt->topicConf = rd_kafka_topic_conf_dup (kh->topicConf);
 
 #define TOPIC_STRING_FORMAT "kafka_topic%lu"
 	// if cmdName is #auto, generate a unique name for the object
@@ -2512,6 +2633,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 		"output_queue_length",
 		"meta",
 		"info",
+		"config",
         "delete",
         NULL
     };
@@ -2525,6 +2647,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
         OPT_OUTPUT_QUEUE_LENGTH,
 		OPT_META,
 		OPT_INFO,
+		OPT_TOPIC_CONFIG,
 		OPT_DELETE
     };
 
@@ -2722,6 +2845,12 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 			break;
 		}
 
+		case OPT_TOPIC_CONFIG: {
+			resultCode = kafkatcl_handle_topic_conf (interp, kh->topicConf, objc - 2, &objv[2]);
+			break;
+		}
+
+
 		case OPT_DELETE: {
 			if (objc != 2) {
 				Tcl_WrongNumArgs (interp, 2, objv, "");
@@ -2736,65 +2865,6 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 
     }
     return resultCode;
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_set_conf --
- *
- *    given an object client data and a topic config var and value,
- *		set the topic configuration property
- *
- *    returns an error if rd_kafka_conf_set returns an error
- *
- * Results:
- *    a standard tcl result
- *
- *----------------------------------------------------------------------
- */
-int
-kafkatcl_set_conf (kafkatcl_objectClientData *ko, char *name, char *value) {
-	Tcl_Interp *interp = ko->interp;
-	char errStr[256];
-
-	rd_kafka_conf_res_t res = rd_kafka_conf_set (ko->conf, name, value, errStr, sizeof(errStr));
-
-	if (res != RD_KAFKA_CONF_OK) {
-		Tcl_SetObjResult (interp, Tcl_NewStringObj (errStr, -1));
-		return TCL_ERROR;
-	}
-	return TCL_OK;
-}
-
-
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_set_topic_conf --
- *
- *    given an object client data and a topic config var and value,
- *		set the topic configuration property
- *
- *    returns an error if rd_kafka_topic_conf_set returns an error
- *
- * Results:
- *    a standard tcl result
- *
- *----------------------------------------------------------------------
- */
-int
-kafkatcl_set_topic_conf (kafkatcl_objectClientData *ko, char *name, char *value) {
-	Tcl_Interp *interp = ko->interp;
-	char errStr[256];
-
-	rd_kafka_conf_res_t res = rd_kafka_topic_conf_set (ko->topicConf, name, value, errStr, sizeof(errStr));
-
-	if (res != RD_KAFKA_CONF_OK) {
-		Tcl_SetObjResult (interp, Tcl_NewStringObj (errStr, -1));
-		return TCL_ERROR;
-	}
-	return TCL_OK;
 }
 
 /*
@@ -2864,6 +2934,7 @@ kafkatcl_createHandleObjectCommand (kafkatcl_objectClientData *ko, char *cmdName
 	kh->kafkaType = kafkaType;
 	kh->threadId = Tcl_GetCurrentThread ();
 	kh->metadata = NULL;
+	kh->topicConf = rd_kafka_topic_conf_dup (ko->topicConf);
 
 	Tcl_CreateEventSource (kafkatcl_EventSetupProc, kafkatcl_EventCheckProc, (ClientData) kh);
 
@@ -2944,35 +3015,36 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
     }
 
     switch ((enum options) optIndex) {
+		// handle config and topic config in the same code.  it's that or
+		// two cases that are identical except for the call to get the
+		// list of key-value pairs and the call to set a key-value pair
 		case OPT_CONFIG: {
-			if ((objc != 2) && (objc != 4)) {
-				Tcl_WrongNumArgs (interp, 2, objv, "?name value?");
+			if (objc % 2 != 0) {
+				Tcl_WrongNumArgs (interp, 2, objv, "?name value ...?");
 				return TCL_ERROR;
 			}
 
 			if (objc == 2) {
 				resultCode = kafkatcl_conf_to_list (interp, ko->conf);
 			} else {
-				char *name = Tcl_GetString (objv[2]);
-				char *value = Tcl_GetString (objv[3]);
-				resultCode = kafkatcl_set_conf (ko, name, value);
+				int i;
+
+				for (i = 2; i < objc; i++) {
+					char *name = Tcl_GetString (objv[i]);
+					char *value = Tcl_GetString (objv[i + 1]);
+
+					resultCode = kafkatcl_set_conf (ko, name, value);
+
+					if (resultCode == TCL_ERROR) {
+						break;
+					}
+				}
 			}
 			break;
 		}
 
 		case OPT_TOPIC_CONFIG: {
-			if ((objc != 2) && (objc != 4)) {
-				Tcl_WrongNumArgs (interp, 2, objv, "?name value?");
-				return TCL_ERROR;
-			}
-
-			if (objc == 2) {
-				resultCode = kafkatcl_topic_conf_to_list (interp, ko->topicConf);
-			} else {
-				char *name = Tcl_GetString (objv[2]);
-				char *value = Tcl_GetString (objv[3]);
-				resultCode = kafkatcl_set_topic_conf (ko, name, value);
-			}
+			resultCode = kafkatcl_handle_topic_conf (interp, ko->topicConf, objc - 2, &objv[2]);
 			break;
 		}
 
@@ -3010,6 +3082,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			Tcl_IncrRefCount (ko->deliveryReportCallbackObj);
 
 			rd_kafka_conf_set_dr_msg_cb (ko->conf, kafkatcl_delivery_report_callback);
+printf("delivery report callback set\n");
 			break;
 		}
 

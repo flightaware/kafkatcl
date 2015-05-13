@@ -90,9 +90,11 @@ kafka create_consumer consumer
 Methods of kafka interface object
 ---
 
-* *$kafka* **config** *?key value?*
+* *$kafka* **config** *?key value? ...*
 
-If invoked without arguments, returns a list of the configuration properties and values suitable for passing to *array set* or whatever.  If invoked with a key and value, sets the key-value pair into the configuration properties.
+If invoked without arguments, returns a list of the configuration properties and values suitable for passing to *array set* or whatever.
+
+If invoked with one or more pairs of property and value arguments, sets the value of each property-value pair into the configuration properties.
 
 Returns a Tcl error if it fails.
 
@@ -108,7 +110,7 @@ Create a kafkatcl consumer handle object.  The consumer handle object is used to
 
 If invoked without arguments returns a list of the topic configuration properties and values.
 
-If key and value are present sets a single kafka topic configuration property  by specifying the property name and value.  Returns a Tcl error if it fails.
+As with **config**, if invoked with one or more pairs of property and value arguments, sets the value of each property-value pair into the topic configuration properties.
 
 * *$kafka* **delivery_report_callback** *command*
 
@@ -149,6 +151,16 @@ Methods of kafka handle object
 * *$handle* **name**
 
 Return the kafka name of the handle.
+
+* *$kafka* **config** *?key value?*
+
+The kafka handle object inherits a copy of the topic config from the master object.
+
+**config** provides a way to examine and alter the topic configuration properties.  (These properties are copied to to producer/consumer objects when they are created and from there to topics.)
+
+If invoked without arguments returns a list of the topic configuration properties and values.
+
+If invoked with one or more pairs of property and value arguments, sets the value of each property-value pair into the topic configuration properties.
 
 * *$handle* **new_topic** *commandName* *topic*
 
@@ -197,6 +209,18 @@ Produce one message into the specified partition.  If there's an error, you get 
 
 If *key* is specified then it's passed to the topic partitioner as well as sent to the broker and passed to the consumer.  That means the partitioning algorithm can use that to help pick the partition.  Also it's a value that can be sent through alongside the payload.
 
+* *$topic* **produce_batch** *partition* *list-of-payload-key-lists*
+
+Produce a list of messages into the specified partition.  The list is a list of lists.  Each sublist must contain one or two elements.  If one element is present, it is the message payload.  If two are present, it is the payload and optional key.
+
+* *$topic* **config** *?key value? ...*
+
+Obtain a list of the topic configuration or set one or more property-value pairs into the topic configuration.
+
+* *$topic* **delete**
+
+Delete the producer object, destroying the command.
+
 Methods of kafka topic consumer object
 ---
 
@@ -240,6 +264,14 @@ If an error is received the fields will be *error*, *code*, and *message* corres
 
 Note that you have to call *consume_callback* repeatedly and it may return 0 if no data is available at the time it is called.  Subsequent calls will return nonzero when messages are available.
 
+* *$topic* **config** *?key value? ...*
+
+Obtain a list of the topic configuration or set one or more property-value pairs into the topic configuration.
+
+* *$topic* **delte**
+
+Delete the topic, destorying the corresponding Tcl command.
+
 ```
 consumer consume_callback 0 5000 callback
 ```
@@ -281,6 +313,10 @@ If an error is received the fields will be *error*, *code*, and *message* corres
 **consume_callback** returns the number of messages consumed.
 
 Note that you have to invoke the *consume_callback* method repeatedly, and it will return 0 if no data is available at the time it is called.  Later, though, calling it again may well produce messages.
+
+*$queue* **delete**
+
+Delete the consumer queue object.
 
 Received Kafka Messages
 ---
