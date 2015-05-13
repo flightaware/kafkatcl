@@ -1599,7 +1599,7 @@ kafkatcl_handle_topic_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf
 
 	int i;
 	int resultCode = TCL_OK;
-	for (i = 0; i < objc; i++) {
+	for (i = 0; i < objc; i += 2) {
 		char *name = Tcl_GetString (objv[i]);
 		char *value = Tcl_GetString (objv[i + 1]);
 
@@ -3029,7 +3029,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			} else {
 				int i;
 
-				for (i = 2; i < objc; i++) {
+				for (i = 2; i < objc; i += 2) {
 					char *name = Tcl_GetString (objv[i]);
 					char *value = Tcl_GetString (objv[i + 1]);
 
