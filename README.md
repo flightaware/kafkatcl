@@ -56,7 +56,7 @@ Kafka handle objects are used to create topic producers and consumers.
 Topic producer and consumer objects are used to produce and consume messages to kafka.
 
 
-KafkaTcl command
+KafkaTcl commands
 ---
 
 The kafkatcl command from which all others are created is **::kafka::kafka**.
@@ -440,6 +440,32 @@ kafka_producer new_topic producer test
 
 producer produce $partition $payload $key
 ```
+
+KafkaTcl The Easy Way
+---
+
+Kafkatcl has the ability to have multiple master objects and multiple topic-consumer-generating and topic-producer-generating commands.  It's all very thorough.  But unless you're planning to talk to multiple kafka clusters from one process you may be happier with the easy interface provided by the kafkatcl library.
+
+* **kafka::brokers** *brokerList*
+
+Assign a list of brokers.  Default is 127.0.0.1.
+
+* **kafka::topic_consumer** *command* *topic*
+
+Create a kafkatcl topic-consuming command named *command* attached to *topic*.
+
+* **kafka::topic_producer** *command* *topic*
+
+Create a kafkatcl topic-producing command named *command* attached to *topic*.
+
+It create on demand one master object, ::kafka::master, one producer object, ::kafka::producer, one consumer object, ::kafka::consumer.
+
+You can configure them and do all the stuff with them.
+
+* **kafka::setup_producer**
+
+You don't need this unless you want to configure the producer object before creating a topic producer.  Likewise for setup_consumer.
+
 
 Misc Stuff
 ---
