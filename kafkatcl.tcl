@@ -4,12 +4,15 @@
 #
 #
 
-namespace eval ::kafka {
+namespace eval ::kafka  {
 	variable consumerIsSetup 0
 	variable producerIsSetup 0
 	variable masterIsSetup 0
 	variable brokers 127.0.0.1
 
+proc logger {message} {
+	puts stderr "kafka: $message"
+}
 #
 # setup - create a kafka master object if one hasn't already been created
 #
@@ -21,6 +24,7 @@ proc setup {} {
 	}
 
 	::kafka::kafka create ::kafka::master
+	logger "created ::kafka::master"
 	set masterIsSetup 1
 }
 
@@ -42,6 +46,8 @@ proc setup_consumer {} {
 	consumer add_brokers $brokers
 
 	set consumerIsSetup 1
+
+	logger "created consumer-creator with brokers $brokers"
 }
 
 #
@@ -62,6 +68,8 @@ proc setup_producer {} {
 	producer add_brokers $brokers
 
 	producer config compression.codec gzip
+
+	logger "created producer-creator with brokers $brokers"
 }
 
 #
@@ -71,6 +79,10 @@ proc brokers {brokerList} {
 	variable brokers
 
 	set brokers $brokerList
+
+	setup
+
+	logger "set brokers to $brokerList"
 }
 
 #
@@ -80,6 +92,7 @@ proc brokers {brokerList} {
 proc topic_producer {name topic} {
 	setup_producer
 
+	logger "creating producer $name for topic $topic"
 	return [producer new_topic $name $topic]
 }
 
@@ -90,6 +103,7 @@ proc topic_producer {name topic} {
 proc topic_consumer {name topic} {
 	setup_consumer
 
+	logger "creating consumer $name for topic $topic"
 	return [consumer new_topic $name $topic]
 }
 
