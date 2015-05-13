@@ -74,7 +74,7 @@ set kafka [::kafka::kafka create #auto]
 
 $kafka logger callback klog
 
-set consumer [$kafka create_consumer #auto]
+set consumer [$kafka consumer_creator #auto]
 ```
 
 ...or...
@@ -84,7 +84,7 @@ set consumer [$kafka create_consumer #auto]
 
 kafka logger callback klog
 
-kafka create_consumer consumer
+kafka consumer_creator consumer
 ```
 
 Methods of kafka interface object
@@ -98,11 +98,11 @@ If invoked with one or more pairs of property and value arguments, sets the valu
 
 Returns a Tcl error if it fails.
 
-* *$kafka* **create_producer** *cmdName*
+* *$kafka* **producer_creator** *cmdName*
 
 Create a kafkatcl producer handle object.  the producer handle object is used to establish communications with the kafka cluster and eventually create topic producer objects.
 
-* *$kafka* **create_consumer** *cmdName*
+* *$kafka* **consumer_creator** *cmdName*
 
 Create a kafkatcl consumer handle object.  The consumer handle object is used to connect with the kafka cluster and eventually create topic consumer topics.
 
@@ -172,7 +172,7 @@ When a topic-producing or topic-consuming object is created, the topic config is
 
 Creates a new topic consumer or producer object corresponding to the specified topic.
 
-If the handle was created with the **create_producer** method then a topic producer object will be created.  If it was created with the **create_consumer** method then a topic consumer object will be created.
+If the handle was created with the **producer_creator** method then a topic producer object will be created.  If it was created with the **consumer_creator** method then a topic consumer object will be created.
 
 * *$handle* **log_level** *level*
 
@@ -348,14 +348,14 @@ The name of the topic.
 Setting up a consumer
 ---
 
-Create a kafka object, from that use the *create_consumer* method to create a kafka consumer-creating object.  From that create a topic-consuming object to read messages.
+Create a kafka object, from that use the *consumer_creator* method to create a kafka consumer-creating object.  From that create a topic-consuming object to read messages.
 
 ```tcl
 package require kafka
 
 ::kafka::kafka create kafka_master
 
-kafka_master create_consumer kafka_consumer
+kafka_master consumer_creator kafka_consumer
 kafka_consumer add_brokers 127.0.0.1
 
 kafka_consumer new_topic consumer test
@@ -369,14 +369,14 @@ parray foo
 Setting up a consumer with callbacks
 ---
 
-Create a kafka object, from that use the *create_consumer* method to create a kafka consumer-creating object.  From that create a topic consuming object to read messages and invoke it in the callback manner.
+Create a kafka object, from that use the *consumer_creator* method to create a kafka consumer-creating object.  From that create a topic consuming object to read messages and invoke it in the callback manner.
 
 ```
 package require kafka
 
 set master [::kafka::kafka create #auto]
 
-set consumer [$master create_consumer #auto]
+set consumer [$master consumer_creator #auto]
 $consumer add_brokers 127.0.0.1
 
 set topic [$consumer new_topic #auto flightplans.production]
@@ -393,14 +393,14 @@ set rowsReceived [$topic consume_callback 0 5000 callback]
 Setting up a consumer and consume to a queue with callbacks
 ---
 
-Create a kafka object, from that use the *create_consumer* method to create a kafka consumer-creating object.  From that create a topic consuming object to read messages and invoke it in the callback manner.
+Create a kafka object, from that use the *consumer_creator* method to create a kafka consumer-creating object.  From that create a topic consuming object to read messages and invoke it in the callback manner.
 
 ```
 package require kafka
 
 set master [::kafka::kafka create #auto]
 
-set consumer [$master create_consumer #auto]
+set consumer [$master consumer_creator #auto]
 $master add_brokers 127.0.0.1
 
 set myQueue [$consumer create_queue #auto]
@@ -425,14 +425,14 @@ pass
 Setting up a producer
 ---
 
-Create a kafka object, from that use the *create_producer* method to create a kafka producer-creating object.  From that create a topic producing object to produce messages to.  key is optional.
+Create a kafka object, from that use the *producer_creator* method to create a kafka producer-creating object.  From that create a topic producing object to produce messages to.  key is optional.
 
 ```tcl
 package require kafka
 
 ::kafka::kafka create kafka_master
 
-kafka_master create_producer kafka_producer
+kafka_master producer_creator kafka_producer
 kafka_producer add_brokers 127.0.0.1
 
 

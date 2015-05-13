@@ -2963,8 +2963,8 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 
     static CONST char *options[] = {
         "config",
-        "create_producer",
-        "create_consumer",
+        "producer_creator",
+        "consumer_creator",
 		"topic_config",
         "delivery_report_callback",
         "error_callback",
@@ -2976,8 +2976,8 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 
     enum options {
         OPT_CONFIG,
-        OPT_CREATE_PRODUCER,
-        OPT_CREATE_CONSUMER,
+        OPT_PRODUCER_CREATOR,
+        OPT_CONSUMER_CREATOR,
 		OPT_TOPIC_CONFIG,
         OPT_SET_DELIVERY_REPORT_CALLBACK,
         OPT_SET_ERROR_CALLBACK,
@@ -3030,8 +3030,8 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			break;
 		}
 
-		case OPT_CREATE_CONSUMER:
-		case OPT_CREATE_PRODUCER: {
+		case OPT_CONSUMER_CREATOR:
+		case OPT_PRODUCER_CREATOR: {
 			rd_kafka_type_t type;
 
 			if (objc != 3) {
@@ -3039,7 +3039,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 				return TCL_ERROR;
 			}
 
-			if (optIndex== OPT_CREATE_CONSUMER) {
+			if (optIndex== OPT_CONSUMER_CREATOR) {
 				type = RD_KAFKA_CONSUMER;
 			} else {
 				type = RD_KAFKA_PRODUCER;

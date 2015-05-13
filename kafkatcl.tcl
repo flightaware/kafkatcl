@@ -38,7 +38,7 @@ proc setup_consumer {} {
 
 	setup
 
-	master create_consumer ::kafka::consumer
+	master consumer_creator ::kafka::consumer
 	consumer add_brokers $brokers
 
 	set consumerIsSetup 1
@@ -58,7 +58,7 @@ proc setup_producer {} {
 
 	setup
 
-	master create_producer ::kafka::producer
+	master producer_creator ::kafka::producer
 	producer add_brokers $brokers
 
 	producer config compression.codec gzip
