@@ -991,7 +991,6 @@ kafkatcl_logging_eventProc (Tcl_Event *tevPtr, int flags) {
 	// Go get that.
 
 	kafkatcl_loggingEvent *evPtr = (kafkatcl_loggingEvent *)tevPtr;
-	int tclReturnCode;
 	Tcl_Interp *interp = evPtr->interp;
 #define KAFKATCL_LOG_CALLBACK_LISTCOUNT 6
 
@@ -1027,7 +1026,7 @@ kafkatcl_logging_eventProc (Tcl_Event *tevPtr, int flags) {
 	// even if this fails we still want the event taken off the queue
 	// this function will do the background error thing if there is a tcl
 	// error running the callback
-	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, kafkatcl_loggingCallbackObj, listObj);
+	kafkatcl_invoke_callback_with_argument (interp, kafkatcl_loggingCallbackObj, listObj);
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
 	// it and don't want it removed from the queue
 	return 1;
@@ -1055,7 +1054,6 @@ kafkatcl_stats_eventProc (Tcl_Event *tevPtr, int flags) {
 	// Go get that.
 
 	kafkatcl_statsEvent *evPtr = (kafkatcl_statsEvent *)tevPtr;
-	int tclReturnCode;
 	kafkatcl_objectClientData *ko = evPtr->ko;
 	Tcl_Interp *interp = ko->interp;
 
@@ -1065,7 +1063,7 @@ kafkatcl_stats_eventProc (Tcl_Event *tevPtr, int flags) {
 	// even if this fails we still want the event taken off the queue
 	// this function will do the background error thing if there is a tcl
 	// error running the callback
-	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, ko->statisticsCallbackObj, jsonObj);
+	kafkatcl_invoke_callback_with_argument (interp, ko->statisticsCallbackObj, jsonObj);
 	free (evPtr->json);
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
 	// it and don't want it removed from the queue
@@ -1094,7 +1092,6 @@ kafkatcl_error_eventProc (Tcl_Event *tevPtr, int flags) {
 	// Go get that.
 
 	kafkatcl_errorEvent *evPtr = (kafkatcl_errorEvent *)tevPtr;
-	int tclReturnCode;
 	kafkatcl_objectClientData *ko = evPtr->ko;
 	Tcl_Interp *interp = ko->interp;
 
@@ -1116,7 +1113,7 @@ kafkatcl_error_eventProc (Tcl_Event *tevPtr, int flags) {
 	// even if this fails we still want the event taken off the queue
 	// this function will do the background error thing if there is a tcl
 	// error running the callback
-	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, ko->errorCallbackObj, listObj);
+	kafkatcl_invoke_callback_with_argument (interp, ko->errorCallbackObj, listObj);
 
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
 	// it and don't want it removed from the queue
@@ -1245,7 +1242,6 @@ kafkatcl_delivery_report_eventProc (Tcl_Event *tevPtr, int flags) {
 
 printf("deliver event proc called\n");
 	kafkatcl_deliveryReportEvent *evPtr = (kafkatcl_deliveryReportEvent *)tevPtr;
-	int tclReturnCode;
 	kafkatcl_objectClientData *ko = evPtr->ko;
 	Tcl_Interp *interp = ko->interp;
 
@@ -1262,7 +1258,7 @@ printf("deliver event proc called\n");
 	// even if this fails we still want the event taken off the queue
 	// this function will do the background error thing if there is a tcl
 	// error running the callback
-	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, ko->deliveryReportCallbackObj, listObj);
+	kafkatcl_invoke_callback_with_argument (interp, ko->deliveryReportCallbackObj, listObj);
 
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
 	// it and don't want it removed from the queue
@@ -1361,7 +1357,6 @@ kafkatcl_consume_callback_eventProc (Tcl_Event *tevPtr, int flags) {
 	// Go get that.
 
 	kafkatcl_consumeCallbackEvent *evPtr = (kafkatcl_consumeCallbackEvent *)tevPtr;
-	int tclReturnCode;
 	kafkatcl_topicClientData *kt = evPtr->kt;
 	Tcl_Interp *interp = kt->kh->interp;
 
@@ -1370,7 +1365,7 @@ kafkatcl_consume_callback_eventProc (Tcl_Event *tevPtr, int flags) {
 	// even if this fails we still want the event taken off the queue
 	// this function will do the background error thing if there is a tcl
 	// error running the callback
-	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, kt->consumeCallbackObj, listObj);
+	kafkatcl_invoke_callback_with_argument (interp, kt->consumeCallbackObj, listObj);
 
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
 	// it and don't want it removed from the queue
@@ -1443,7 +1438,6 @@ kafkatcl_consume_callback_queue_eventProc (Tcl_Event *tevPtr, int flags) {
 	// Go get that.
 
 	kafkatcl_consumeCallbackQueueEvent *evPtr = (kafkatcl_consumeCallbackQueueEvent *)tevPtr;
-	int tclReturnCode;
 	kafkatcl_queueClientData *kq = evPtr->kq;
 	Tcl_Interp *interp = kq->kh->interp;
 
@@ -1452,7 +1446,7 @@ kafkatcl_consume_callback_queue_eventProc (Tcl_Event *tevPtr, int flags) {
 	// even if this fails we still want the event taken off the queue
 	// this function will do the background error thing if there is a tcl
 	// error running the callback
-	tclReturnCode = kafkatcl_invoke_callback_with_argument (interp, kq->consumeCallbackObj, listObj);
+	kafkatcl_invoke_callback_with_argument (interp, kq->consumeCallbackObj, listObj);
 
 	// free the payload
 	ckfree (evPtr->rkmessage.payload);
@@ -3272,12 +3266,10 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 			autoGeneratedName = 0;
 			if (strcmp (cmdName, "#auto") == 0) {
 				static unsigned long nextAutoCounter = 0;
-				char *objName;
 				int    baseNameLength;
 
 #define OBJECT_STRING_FORMAT "kafka_object%lu"
-				objName = Tcl_GetStringFromObj (objv[0], &baseNameLength);
-				baseNameLength += snprintf (NULL, 0, OBJECT_STRING_FORMAT, nextAutoCounter) + 1;
+				baseNameLength = snprintf (NULL, 0, OBJECT_STRING_FORMAT, nextAutoCounter) + 1;
 				cmdName = ckalloc (baseNameLength);
 				snprintf (cmdName, baseNameLength, OBJECT_STRING_FORMAT, nextAutoCounter++);
 				autoGeneratedName = 1;
