@@ -2606,6 +2606,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 	int resultCode = TCL_OK;
 
     static CONST char *options[] = {
+        "poll",
         "name",
         "new_topic",
 		"log_level",
@@ -2620,6 +2621,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
     };
 
     enum options {
+        OPT_POLL,
         OPT_NAME,
 		OPT_NEW_TOPIC,
 		OPT_LOG_LEVEL,
@@ -2643,6 +2645,26 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
     }
 
     switch ((enum options) optIndex) {
+		case OPT_POLL: {
+			int timeoutMS = 0;
+			int eventsServed;
+
+			if (objc > 3) {
+				Tcl_WrongNumArgs (interp, 2, objv, "?ms?");
+				return TCL_ERROR;
+			}
+
+			if (objc == 3) {
+				if (Tcl_GetIntFromObj (interp, objv[2], &timeoutMS) == TCL_ERROR) {
+					resultCode = TCL_ERROR;
+					break;
+				}
+			}
+
+			eventsServed = rd_kafka_poll (rk, timeoutMS);
+			Tcl_SetObjResult (interp, Tcl_NewIntObj (eventsServed));
+		}
+
 		case OPT_NAME: {
 			if (objc != 2) {
 				Tcl_WrongNumArgs (interp, 2, objv, "");
@@ -2971,9 +2993,6 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
     }
 
     switch ((enum options) optIndex) {
-		// handle config and topic config in the same code.  it's that or
-		// two cases that are identical except for the call to get the
-		// list of key-value pairs and the call to set a key-value pair
 		case OPT_CONFIG: {
 			if (objc % 2 != 0) {
 				Tcl_WrongNumArgs (interp, 2, objv, "?name value ...?");

@@ -168,6 +168,16 @@ When a topic-producing or topic-consuming object is created, the topic config is
     $handle config compression.codec gzip
 ```
 
+* *$handle* **poll** *?timeoutMS?*
+
+Polls the kafka handle for events.  Events will cause kafkatcl-provided kafka event callbacks to be called.
+
+*timeoutMS*, if present, specifies the minimum amount of time in milliseconds that the call will block waiting for events.  If no timeout is specified or 0 is specified as the timeout, the handle will be pulled nonblocking.
+
+If -1 is specified then Tcl will wait indefinitely for an event, which is probably not a good idea.
+
+We expect to further develop kafkatcl where polling will be done automatically within kafkatcl using Tcl event mechanisims.
+
 * *$handle* **new_topic** *commandName* *topic*
 
 Creates a new topic consumer or producer object corresponding to the specified topic.
