@@ -716,7 +716,6 @@ kafkatcl_handle_command_to_handleClientData (Tcl_Interp *interp, char *handleCom
 Tcl_Obj *
 kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 	Tcl_Obj *listObj;
-	int count;
 
 	if (rdm->err != RD_KAFKA_RESP_ERR_NO_ERROR) {
 		// error message is in the payload
@@ -740,29 +739,32 @@ kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 	} else {
 #define KAFKATCL_GOOD_MESSAGE_LIST_COUNT 10
 		Tcl_Obj *listObjv[KAFKATCL_GOOD_MESSAGE_LIST_COUNT];
+		int i = 0;
 
-		listObjv[0] = Tcl_NewStringObj ("payload", -1);
-		listObjv[1] = Tcl_NewStringObj (rdm->payload, rdm->len);
+		listObjv[i++] = Tcl_NewStringObj ("payload", -1);
+		listObjv[i++] = Tcl_NewStringObj (rdm->payload, rdm->len);
 
-		listObjv[2] = Tcl_NewStringObj ("partition", -1);
-		listObjv[3] = Tcl_NewIntObj (rdm->partition);
+		listObjv[i++] = Tcl_NewStringObj ("partition", -1);
+		listObjv[i++] = Tcl_NewIntObj (rdm->partition);
 
-		listObjv[4] = Tcl_NewStringObj ("offset", -1);
-		listObjv[5] = Tcl_NewWideIntObj (rdm->offset);
+		listObjv[i++] = Tcl_NewStringObj ("offset", -1);
+		listObjv[i++] = Tcl_NewWideIntObj (rdm->offset);
 
-		listObjv[6] = Tcl_NewStringObj ("topic", -1);
-		listObjv[7] = Tcl_NewStringObj (rd_kafka_topic_name (rdm->rkt), -1);
+		// include the topic name if there is a topic structure
+		if (rdm->rkt != NULL) {
+			listObjv[i++] = Tcl_NewStringObj ("topic", -1);
+			listObjv[i++] = Tcl_NewStringObj (rd_kafka_topic_name (rdm->rkt), -1);
+		}
 
 		// add the key if there is one
 		if (rdm->key != NULL) {
-			listObjv[8] = Tcl_NewStringObj ("key", -1);
-			listObjv[9] = Tcl_NewStringObj (rdm->key, rdm->key_len);
-			count = KAFKATCL_GOOD_MESSAGE_LIST_COUNT;
-		} else {
-			count = KAFKATCL_GOOD_MESSAGE_LIST_COUNT - 2;
+			listObjv[i++] = Tcl_NewStringObj ("key", -1);
+			listObjv[i++] = Tcl_NewStringObj (rdm->key, rdm->key_len);
 		}
 
-		listObj = Tcl_NewListObj (count, listObjv);
+		assert (i <= KAFKATCL_GOOD_MESSAGE_LIST_COUNT);
+
+		listObj = Tcl_NewListObj (i, listObjv);
 	}
 
 	return listObj;
@@ -1272,8 +1274,9 @@ printf("deliver event proc called\n");
  * kafkatcl_delivery_report_callback --
  *
  *    this routine is called by the kafka cpp-driver as a callback
- *    when a delivery report has been received and rd_kafka_set_dr_cb
- *    has been done to register this callback
+ *    when a delivery report has been received and
+ *    rd_kafka_set_dr_msg_cb has been done to register
+ *    this callback
  *
  * Results:
  *    an event is queued to the thread that set up the callback
