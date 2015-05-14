@@ -150,7 +150,7 @@ Methods of kafka consumer and producer handle object
 
 * *$handle* **name**
 
-Return the kafka name of the handle.
+Return the kafka name of the handle.  You'll get something like **rdkafka#producer-0**.
 
 * *$handle* **config** *?key value?*
 
