@@ -2666,6 +2666,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 
 			eventsServed = rd_kafka_poll (rk, timeoutMS);
 			Tcl_SetObjResult (interp, Tcl_NewIntObj (eventsServed));
+			break;
 		}
 
 		case OPT_NAME: {
