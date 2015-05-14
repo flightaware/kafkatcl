@@ -2857,37 +2857,6 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 /*
  *----------------------------------------------------------------------
  *
- * kafkatcl_create_kafka_handle --
- *
- *    given a handle client data, set up to be a producer or consumer
- *
- *    type can be RD_KAFKA_CONSUMER or RD_KAFKA_PRODUCER
- *
- *    returns an error if rd_kafka_new returns an error
- *
- * Results:
- *    a standard tcl result
- *
- *----------------------------------------------------------------------
- */
-int
-kafkatcl_create_kafka_handle (kafkatcl_handleClientData *kh, rd_kafka_type_t type) {
-	char errStr[256];
-	rd_kafka_t *rk = rd_kafka_new (type, kh->ko->conf, errStr, sizeof(errStr));
-	Tcl_Interp *interp = kh->interp;
-
-	if (rk == NULL) {
-		Tcl_SetObjResult (interp, Tcl_NewStringObj (errStr, -1));
-		return TCL_ERROR;
-	}
-	kh->rk = rk;
-	kh->kafkaType = type;
-	return TCL_OK;
-}
-
-/*
- *----------------------------------------------------------------------
- *
  * kafkatcl_createHandleObjectCommand --
  *
  *    given a kafkatcl_objectClientData pointer, an object name (or "#auto"),
@@ -2907,7 +2876,13 @@ kafkatcl_createHandleObjectCommand (kafkatcl_objectClientData *ko, char *cmdName
 	// configure it
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)ckalloc (sizeof (kafkatcl_handleClientData));
 	Tcl_Interp *interp = ko->interp;
-	rd_kafka_t *rk = rd_kafka_new (kafkaType, ko->conf, errStr, sizeof(errStr));
+
+	// rd_kafka_new consumes its conf object so give it one because
+	// we don't want to give ours up
+	rd_kafka_conf_t *conf = rd_kafka_conf_dup (ko->conf);
+
+	// create the handle
+	rd_kafka_t *rk = rd_kafka_new (kafkaType, conf, errStr, sizeof(errStr));
 
 	if (rk == NULL) {
 		Tcl_SetObjResult (interp, Tcl_NewStringObj (errStr, -1));
