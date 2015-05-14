@@ -716,6 +716,7 @@ kafkatcl_handle_command_to_handleClientData (Tcl_Interp *interp, char *handleCom
 Tcl_Obj *
 kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 	Tcl_Obj *listObj;
+	int count;
 
 	if (rdm->err != RD_KAFKA_RESP_ERR_NO_ERROR) {
 		// error message is in the payload
@@ -752,7 +753,6 @@ kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 		listObjv[6] = Tcl_NewStringObj ("topic", -1);
 		listObjv[7] = Tcl_NewStringObj (rd_kafka_topic_name (rdm->rkt), -1);
 
-		int count;
 		// add the key if there is one
 		if (rdm->key != NULL) {
 			listObjv[8] = Tcl_NewStringObj ("key", -1);
@@ -762,7 +762,7 @@ kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 			count = KAFKATCL_GOOD_MESSAGE_LIST_COUNT - 2;
 		}
 
-		listObj = Tcl_NewListObj (KAFKATCL_GOOD_MESSAGE_LIST_COUNT, listObjv);
+		listObj = Tcl_NewListObj (count, listObjv);
 	}
 
 	return listObj;

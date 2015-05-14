@@ -1,7 +1,11 @@
 #
 # kafkatcl support functions
 #
+# simple usage:
 #
+# kafka::brokers $brokerList
+# topic_producer commandName topic
+# topic_consumer commandName topic
 #
 
 namespace eval ::kafka  {
