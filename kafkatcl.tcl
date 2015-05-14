@@ -69,6 +69,8 @@ proc setup_producer {} {
 
 	producer config compression.codec gzip
 
+	set producerIsSetup 1
+
 	logger "created producer-creator with brokers $brokers"
 }
 
