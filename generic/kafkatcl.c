@@ -2073,7 +2073,12 @@ kafkatcl_createTopicObjectCommand (kafkatcl_handleClientData *kh, char *cmdName,
 	Tcl_Interp *interp = kh->interp;
 	Tcl_ObjCmdProc *proc = NULL;
 
-	rd_kafka_topic_t *rkt = rd_kafka_topic_new (kh->rk, topic, kh->topicConf);
+	// dup the topic conf that we pass to rd_kafka_topic_new because
+	// rd_kafka_topic_new is documented as freeing the conf object
+	// and we don't want to give up our copy
+	rd_kafka_topic_conf_t *topicConf = rd_kafka_topic_conf_dup (kh->topicConf);
+	rd_kafka_topic_t *rkt = rd_kafka_topic_new (kh->rk, topic, topicConf);
+
 	if (rkt == NULL) {
 		return kafktcl_errno_to_tcl_error (interp);
 	}
