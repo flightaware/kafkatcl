@@ -6,9 +6,9 @@ CassTcl provides a Tcl interface to the KafkaTcl C language API.
 Functionality
 ---
 
-- Can be used completely asynchronous
-- Can be used synchronously for convenience
 - Provides a natural Tcl interface
+- Fast
+- Asynchronous
 - Thread safe
 - Free!
 
@@ -54,6 +54,8 @@ Using methods of your kafka object you create kafka handle objects.
 Kafka handle objects are used to create topic producers and consumers.
 
 Topic producer and consumer objects are used to produce and consume messages to kafka.
+
+Or you can you the simple interface.
 
 
 KafkaTcl commands

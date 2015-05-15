@@ -932,22 +932,20 @@ kafkatcl_invoke_callback_with_argument (Tcl_Interp *interp, Tcl_Obj *callbackObj
  * kafkatcl_EventSetupProc --
  *    This routine is a required argument to Tcl_CreateEventSource
  *
- *    Normally here an extension that generates events does something
- *    to make sure the application wakes up when events of the desired
- *    type occur.
+ *    Since we need to poll librdkafka to get events to fire, let's
+ *    make sure we get called periodically
  *
- *    We don't need to do anything here because we generate Tcl events
- *    onto the originating thread via the callbacks invoked from the
- *   kafka cpp-driver library and that's (apparently) all Tcl
- *    needs to do its thing.
  *
  * Results:
- *    The program compiles.
+ *    Our polling routine will get called periodically.
  *
  *----------------------------------------------------------------------
  */
 void
-kafkatcl_EventSetupProc (ClientData data, int flags) {
+kafkatcl_EventSetupProc (ClientData clientData, int flags) {
+	Tcl_Time time = {0, 100000};
+
+	Tcl_SetMaxBlockTime (&time);
 }
 
 /*
@@ -955,12 +953,11 @@ kafkatcl_EventSetupProc (ClientData data, int flags) {
  *
  * kafkatcl_EventCheckProc --
  *
- *    Normally here an extension that generates events would look at its
- *    tables or whatnot to see what needs to be generated as an event.
+ *    This is a function we pass to Tcl_CreateEventSource that is
+ *    invoked to see if any events have occurred and to queue them.
  *
- *    We don't need to do that because we generate Tcl events
- *    onto the originating thread via the callbacks invoked from the
- *    kafka cpp-driver library, so we handle it that way.
+ *    rdkafkalib requires that we invoke a poll function to trigger
+ *    the kafka-provided callbacks to be invoked.  So we do that.
  *
  * Results:
  *    The program compiles.
@@ -968,7 +965,11 @@ kafkatcl_EventSetupProc (ClientData data, int flags) {
  *----------------------------------------------------------------------
  */
 void
-kafkatcl_EventCheckProc (ClientData data, int flags) {
+kafkatcl_EventCheckProc (ClientData clientData, int flags) {
+    kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)clientData;
+
+	// polling with timeoutMS of 0 is nonblocking, which is ideal
+	rd_kafka_poll (kh->rk, 0);
 }
 
 /*
@@ -1242,7 +1243,6 @@ kafkatcl_delivery_report_eventProc (Tcl_Event *tevPtr, int flags) {
 	// some other stuff that we need.
 	// Go get that.
 
-printf("deliver event proc called\n");
 	kafkatcl_deliveryReportEvent *evPtr = (kafkatcl_deliveryReportEvent *)tevPtr;
 	kafkatcl_objectClientData *ko = evPtr->ko;
 	Tcl_Interp *interp = ko->interp;
@@ -1284,7 +1284,6 @@ printf("deliver event proc called\n");
  *----------------------------------------------------------------------
  */
 void kafkatcl_delivery_report_callback (rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void *opaque) {
-printf("kafkatcl_delivery_report_callback invoked\n");
 	kafkatcl_objectClientData *ko = opaque;
 
     assert (ko->kafka_object_magic == KAFKA_OBJECT_MAGIC);
@@ -1312,7 +1311,6 @@ printf("kafkatcl_delivery_report_callback invoked\n");
 	}
 
 	Tcl_ThreadQueueEvent (ko->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_HEAD);
-printf("deliver report callback queued\n");
 	return;
 }
 
@@ -2577,17 +2575,6 @@ metadata_print (const char *topic, const struct rd_kafka_metadata *metadata) {
 	}
 }
 
-#if 0
-int
-kafkatcl_metadata_to_tcl (Tcl_Interp *interp, rd_kafka_t *rk)
-{
-	rd_kafka_metadata_t *metaData;
-	rd_kafka_resp_err_t kafkaError;
-
-	kafkaError = rd_kafka_metadata (rk, allTopics, onlyTopic, *metaData, timeoutMS);
-}
-#endif
-
 /*
  *----------------------------------------------------------------------
  *
@@ -3061,7 +3048,6 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			Tcl_IncrRefCount (ko->deliveryReportCallbackObj);
 
 			rd_kafka_conf_set_dr_msg_cb (ko->conf, kafkatcl_delivery_report_callback);
-printf("delivery report callback set\n");
 			break;
 		}
 
