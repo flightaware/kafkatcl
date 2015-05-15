@@ -114,6 +114,12 @@ If invoked without arguments returns a list of the default topic configuration p
 
 As with **config**, if invoked with one or more pairs of property and value arguments, sets the value of each property-value pair into the topic configuration properties.
 
+* *$kafka* **partitioner** *partitionerName*
+
+Selects one of the rdkafka-provided partitioners.  The partitioner determines which partition a message should go in.  *random* selects the random partitioner (the default) which will cause produced messages to go into a random partition between zero and the number of partitions of the topic minus one.
+
+*consistent* uses a consistent hashing to map identical keys onto identical partitions.  The key must be specified when producing messages when the consistent partitioner has been selected.
+
 * *$kafka* **delivery_report_callback** *command*
 
 Invoke *command* when kafka cpp-driver delivery report callbacks are received.

@@ -1608,6 +1608,56 @@ kafkatcl_handle_topic_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf
 /*
  *----------------------------------------------------------------------
  *
+ * kafkatcl_partitioner_conf --
+ *
+ *    given an object client data and a topic config structure,
+ *    parse the partitioner name and set the partitioner into
+ *    the topic conf if it can be figured out
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_partitioner_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf, int objc, Tcl_Obj *CONST objv[]) {
+	int suboptIndex;
+
+	static CONST char *subOptions[] = {
+		"random",
+		"consistent",
+		NULL
+	};
+
+	enum subOptions {
+		SUBOPT_RANDOM_PARTITIONER,
+		SUBOPT_CONSISTENT_PARTITIONER,
+	};
+
+	// argument must be one of the subOptions defined above
+	if (Tcl_GetIndexFromObj (interp, objv[0], subOptions, "suboption",
+		TCL_EXACT, &suboptIndex) != TCL_OK) {
+		return TCL_ERROR;
+	}
+
+	switch ((enum subOptions) suboptIndex) {
+		case SUBOPT_RANDOM_PARTITIONER: {
+			rd_kafka_topic_conf_set_partitioner_cb (topicConf, rd_kafka_msg_partitioner_random);
+			break;
+		}
+
+		case SUBOPT_CONSISTENT_PARTITIONER: {
+			rd_kafka_topic_conf_set_partitioner_cb (topicConf, rd_kafka_msg_partitioner_consistent);
+			break;
+		}
+
+	}
+	return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
  * kafkatcl_topicConsumerObjectObjCmd --
  *
  *    dispatches the subcommands of a kafkatcl batch-handling command
@@ -2605,6 +2655,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 		"meta",
 		"info",
 		"config",
+		"partitioner",
         "delete",
         NULL
     };
@@ -2619,6 +2670,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 		OPT_META,
 		OPT_INFO,
 		OPT_TOPIC_CONFIG,
+		OPT_PARTITIONER,
 		OPT_DELETE
     };
 
@@ -2821,6 +2873,16 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 			break;
 		}
 
+		case OPT_PARTITIONER: {
+			if (objc != 3) {
+				Tcl_WrongNumArgs (interp, 2, objv, "consistent|random");
+				return TCL_ERROR;
+			}
+
+			resultCode = kafkatcl_partitioner_conf (interp, kh->topicConf, objc - 2, &objv[2]);
+			break;
+		}
+
 
 		case OPT_DELETE: {
 			if (objc != 2) {
@@ -2930,6 +2992,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
         "producer_creator",
         "consumer_creator",
 		"topic_config",
+		"partitioner",
         "delivery_report_callback",
         "error_callback",
 		"statistics_callback",
@@ -2943,6 +3006,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
         OPT_PRODUCER_CREATOR,
         OPT_CONSUMER_CREATOR,
 		OPT_TOPIC_CONFIG,
+		OPT_PARTITIONER,
         OPT_SET_DELIVERY_REPORT_CALLBACK,
         OPT_SET_ERROR_CALLBACK,
         OPT_SET_STATISTICS_CALLBACK,
@@ -2988,6 +3052,16 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 
 		case OPT_TOPIC_CONFIG: {
 			resultCode = kafkatcl_handle_topic_conf (interp, ko->topicConf, objc - 2, &objv[2]);
+			break;
+		}
+
+		case OPT_PARTITIONER: {
+			if (objc != 3) {
+				Tcl_WrongNumArgs (interp, 2, objv, "consistent|random");
+				return TCL_ERROR;
+			}
+
+			resultCode = kafkatcl_partitioner_conf (interp, ko->topicConf, objc - 2, &objv[2]);
 			break;
 		}
 
