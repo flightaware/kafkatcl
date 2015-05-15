@@ -1,4 +1,4 @@
-KafkaTcl, a Tcl C extension providing a Tcl interface to the Apache Kafka distributed messaging system
+KafkaTcl, a Tcl interface to the Apache Kafka distributed messaging system
 ===
 
 CassTcl provides a Tcl interface to the KafkaTcl C language API.
@@ -297,6 +297,8 @@ If an error is received the fields will be *error*, *code*, and *message* corres
 **consume_callback** returns the number of messages consumed.
 
 Note that you have to call *consume_callback* repeatedly and it may return 0 if no data is available at the time it is called.  Subsequent calls will return nonzero when messages are available.
+
+NOTE This isn't quite right.  You shouldn't have to call this repeatedly, or even at all, like it should be handled automatically in the Tcl event loop.  An issue is getting overwhelmed by data, too.  More to come...
 
 * *$topic* **delte**
 
