@@ -3165,6 +3165,12 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 						break;
 					}
 
+					// if we've already been counting, reset the countdown
+					// to the new "every" value
+					if (ko->deliveryReportCountdown > 0) {
+						ko->deliveryReportCountdown = ko->deliveryReportEvery;
+					}
+
 					break;
 				}
 
