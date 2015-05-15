@@ -1288,9 +1288,19 @@ void kafkatcl_delivery_report_callback (rd_kafka_t *rk, const rd_kafka_message_t
 
     assert (ko->kafka_object_magic == KAFKA_OBJECT_MAGIC);
 
-	kafkatcl_deliveryReportEvent *evPtr;
+	if (ko->sampleDeliveryReport) {
+		ko->sampleDeliveryReport = 0;
+	} else if (ko->deliveryReportEvery == 0) {
+		return;
+	} else {
+		if (--ko->deliveryReportCountdown > 0) {
+			return;
+		}
+		ko->deliveryReportCountdown = ko->deliveryReportEvery;
+	}
 
-	// NB bears too much in common with kafkatcl_consume_callback
+
+	kafkatcl_deliveryReportEvent *evPtr;
 
 	evPtr = ckalloc (sizeof (kafkatcl_deliveryReportEvent));
 
@@ -2993,7 +3003,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
         "consumer_creator",
 		"topic_config",
 		"partitioner",
-        "delivery_report_callback",
+        "delivery_report",
         "error_callback",
 		"statistics_callback",
 		"logger",
@@ -3007,7 +3017,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
         OPT_CONSUMER_CREATOR,
 		OPT_TOPIC_CONFIG,
 		OPT_PARTITIONER,
-        OPT_SET_DELIVERY_REPORT_CALLBACK,
+        OPT_DELIVERY_REPORT,
         OPT_SET_ERROR_CALLBACK,
         OPT_SET_STATISTICS_CALLBACK,
 		OPT_LOGGER,
@@ -3085,20 +3095,81 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			break;
 		}
 
-		case OPT_SET_DELIVERY_REPORT_CALLBACK: {
-			if (objc != 3) {
-				Tcl_WrongNumArgs (interp, 2, objv, "command");
+		case OPT_DELIVERY_REPORT: {
+			int suboptIndex;
+
+			if ((objc < 3) || (objc > 4)) {
+				Tcl_WrongNumArgs (interp, 2, objv, "option ?args?");
 				return TCL_ERROR;
 			}
 
-			if (ko->deliveryReportCallbackObj != NULL) {
-				Tcl_DecrRefCount (ko->deliveryReportCallbackObj);
+			static CONST char *subOptions[] = {
+				"callback",
+				"sample",
+				"every",
+				NULL
+			};
+
+			enum subOptions {
+				SUBOPT_CALLBACK,
+				SUBOPT_SAMPLE,
+				SUBOPT_EVERY
+			};
+
+			// argument must be one of the subOptions defined above
+			if (Tcl_GetIndexFromObj (interp, objv[2], subOptions, "suboption",
+				TCL_EXACT, &suboptIndex) != TCL_OK) {
+				return TCL_ERROR;
 			}
 
-			ko->deliveryReportCallbackObj = objv[2];
-			Tcl_IncrRefCount (ko->deliveryReportCallbackObj);
+			switch ((enum subOptions) suboptIndex) {
+				case SUBOPT_CALLBACK: {
+					if (objc != 4) {
+						Tcl_WrongNumArgs (interp, 3, objv, "command");
+						return TCL_ERROR;
+					}
 
-			rd_kafka_conf_set_dr_msg_cb (ko->conf, kafkatcl_delivery_report_callback);
+					if (ko->deliveryReportCallbackObj != NULL) {
+						Tcl_DecrRefCount (ko->deliveryReportCallbackObj);
+					}
+
+					ko->deliveryReportCallbackObj = objv[3];
+					Tcl_IncrRefCount (ko->deliveryReportCallbackObj);
+
+					rd_kafka_conf_set_dr_msg_cb (ko->conf, kafkatcl_delivery_report_callback);
+					break;
+				}
+
+				case SUBOPT_SAMPLE: {
+					if (objc != 3) {
+						Tcl_WrongNumArgs (interp, 3, objv, "");
+						return TCL_ERROR;
+					}
+					ko->sampleDeliveryReport = 1;
+					break;
+				}
+
+				case SUBOPT_EVERY: {
+					if (objc > 4) {
+						Tcl_WrongNumArgs (interp, 3, objv, "?count?");
+						return TCL_ERROR;
+					}
+
+					if (objc == 3) {
+						Tcl_SetObjResult (interp, Tcl_NewIntObj (ko->deliveryReportCountdown));
+						break;
+					}
+
+					if (Tcl_GetIntFromObj (interp, objv[3], &ko->deliveryReportEvery) == TCL_ERROR) {
+						resultCode = TCL_ERROR;
+						break;
+					}
+
+					break;
+				}
+
+			}
+
 			break;
 		}
 
@@ -3313,6 +3384,10 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 			ko->deliveryReportCallbackObj = NULL;
 			ko->errorCallbackObj = NULL;
 			ko->statisticsCallbackObj = NULL;
+
+			ko->sampleDeliveryReport = 0;
+			ko->deliveryReportEvery = 1;
+			ko->deliveryReportCountdown = 0;
 
 			ko->threadId = Tcl_GetCurrentThread();
 

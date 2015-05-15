@@ -40,6 +40,10 @@ typedef struct kafkatcl_objectClientData
 	Tcl_Obj *deliveryReportCallbackObj;
 	Tcl_Obj *errorCallbackObj;
 	Tcl_Obj *statisticsCallbackObj;
+
+	int sampleDeliveryReport;			// if 1, call back on next produced msg
+	int deliveryReportEvery;			// call back one out of this many
+	int deliveryReportCountdown;		// counter for callback
 } kafkatcl_objectClientData;
 
 typedef struct kafkatcl_handleClientData

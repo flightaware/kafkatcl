@@ -120,11 +120,23 @@ Selects one of the rdkafka-provided partitioners.  The partitioner determines wh
 
 *consistent* uses a consistent hashing to map identical keys onto identical partitions.  The key must be specified when producing messages when the consistent partitioner has been selected.
 
-* *$kafka* **delivery_report_callback** *command*
+* *$kafka* **delivery_report *option* *?args?*
+
+** *$kafka* **delivery_report** **callback** *command*
 
 Invoke *command* when kafka cpp-driver delivery report callbacks are received.
 
-Data returned is the same for *consume_callback*.
+Data returned currently is the payload, partition and offset.
+
+** *$kafka* **delivery_report** **every** *count*
+
+Only perform the delivery report callback event in Tcl every *count* delivery reports received, default 1 for every report received to call back to Tcl.  If set to 100, for instance, the first and every hundredth delivery report callback received would invoke the callback routine.
+
+If set to 0, no delivery reports make it back to Tcl unless the **sample** option is invoked or a different delivery count is selected.
+
+** *$kafka* **delivery_report** **sample**
+
+Sets that the next delivery report callback received will invoke the Tcl callback.  This is so that you could for instance obtain the offset periodically.
 
 * *$kafka* **error_callback** *command*
 
@@ -135,6 +147,8 @@ Invoke *command* when kafka cpp-driver error callbacks are received.
 Invoke *command* when kafka cpp-driver statistics callbacks are received.
 
 The command will be invoked with one argument, which is the JSON provided by the stats callback.
+
+You will need to config *statistics.interval.ms* to the interval you want statistics called back at.
 
 * *$handle* **logger** **syslog**
 
@@ -248,7 +262,7 @@ Methods of kafka topic consumer object
 
 Start consuming the established topic for the specified *partition* starting at offset *offset*.
 
-*offset* can be **beginning** to start consuming at the beginning of the partition (i.e. the oldest message in the partition), **end** to start consuming from the end of the partition, **stored** to start consuming from the offset retrieved from the offset store (whatever that means), a positive integer, which starts consuming starting from the specified message number from that partition, or a negative integer, which says to start consuming that many messages from the end.
+*offset* can be **beginning** to start consuming at the beginning of the partition (i.e. the oldest message in the partition), **end** to start consuming from the end of the partition, **stored** to start consuming from the offset retrieved from the offset store, a positive integer, which starts consuming starting from the specified message number from that partition, or a negative integer, which says to start consuming that many messages from the end.
 
 * *$topic* **consume_start_queue** *partition* *offset* *queue*
 
