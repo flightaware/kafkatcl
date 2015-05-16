@@ -1747,6 +1747,8 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 
 			resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rdm);
 
+			rd_kafka_message_destroy (rdm);
+
 			break;
 		}
 
@@ -1840,6 +1842,8 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 					resultCode = TCL_OK;
 					break;
 				}
+
+				rd_kafka_message_destroy (rkMessages[i]);
 			}
 
 			ckfree (rkMessages);
@@ -2252,6 +2256,7 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			}
 
 			resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rdm);
+			rd_kafka_message_destroy (rdm);
 
 			break;
 		}
@@ -2288,6 +2293,7 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 
 			for (i = 0; i < gotCount; i++) {
 				resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rkMessages[i]);
+				rd_kafka_message_destroy (rkMessages[i]);
 
 				if (resultCode == TCL_ERROR) {
 					break;

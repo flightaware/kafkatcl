@@ -1,7 +1,7 @@
 KafkaTcl, a Tcl interface to the Apache Kafka distributed messaging system
 ===
 
-CassTcl provides a Tcl interface to the KafkaTcl C language API.
+KafkaTcl provides a Tcl interface to the Kafka C language API "librdkafka".
 
 Functionality
 ---
@@ -19,7 +19,7 @@ Open source under the permissive Berkeley copyright, see file LICENSE
 
 Requirements
 ---
-Requires the Apache Kfka library librdkafka be installed.  (https://github.com/edenhill/librdkafka)
+Requires the Apache Kafka C/C++ library *librdkafka* be installed.  (https://github.com/edenhill/librdkafka)
 
 Building
 ---
