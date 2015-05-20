@@ -230,6 +230,14 @@ Return a list of all the brokers defined on the connected kafka cluster.  Each e
 
 Return the number of partitions defined for the specified topic.
 
+* *$handle* **meta** **refresh**
+
+Refresh the metadata by reobtaining it from the server.
+
+* *$handle* **meta** **print**
+
+Print the metadata.  For debugging only; doesn't go through the Tcl I/O system.
+
 * *$handle* delete
 
 Delete the handle object, destroying the command.

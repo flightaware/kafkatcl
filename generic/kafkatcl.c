@@ -2801,12 +2801,16 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 		}
 
 		case OPT_META: {
+			int suboptIndex;
+
 			if (objc != 2) {
 				Tcl_WrongNumArgs (interp, 2, objv, "");
 				return TCL_ERROR;
 			}
 
-			kafkatcl_refresh_metadata (kh);
+			if (kafkatcl_refresh_metadata (kh) == TCL_ERROR) {
+				return TCL_ERROR;
+			}
 
 			const struct rd_kafka_metadata *metadata;
 
@@ -2816,9 +2820,51 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 				return kafkatcl_kafka_error_to_tcl (interp, err, "failed to acquire metadata");
 			}
 
-			metadata_print (NULL, metadata);
 
 			rd_kafka_metadata_destroy (metadata);
+			break;
+
+			if (objc != 3) {
+				Tcl_WrongNumArgs (interp, 2, objv, "refresh|print");
+				return TCL_ERROR;
+			}
+
+			static CONST char *subOptions[] = {
+				"refresh",
+				"print",
+				NULL
+			};
+
+			enum subOptions {
+				SUBOPT_REFRESH,
+				SUBOPT_PRINT,
+			};
+
+			// argument must be one of the subOptions defined above
+			if (Tcl_GetIndexFromObj (interp, objv[2], subOptions, "suboption",
+				TCL_EXACT, &suboptIndex) != TCL_OK) {
+				return TCL_ERROR;
+			}
+
+			switch ((enum subOptions) suboptIndex) {
+				case SUBOPT_REFRESH: {
+					if (kafkatcl_refresh_metadata (kh) == TCL_ERROR) {
+						return TCL_ERROR;
+					}
+					break;
+				}
+
+				case SUBOPT_PRINT: {
+					if (kh->metadata == NULL) {
+						if (kafkatcl_refresh_metadata (kh) == TCL_ERROR) {
+							return TCL_ERROR;
+						}
+					}
+
+					metadata_print (NULL, metadata);
+					break;
+				}
+			}
 			break;
 		}
 
