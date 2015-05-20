@@ -17,11 +17,35 @@ namespace eval ::kafka  {
 proc logger {message} {
 	puts stderr "kafka: $message"
 }
+
+proc handle_args {list} {
+	variable brokers
+
+	foreach "key value" $list {
+		if {[string index $key 0] != "-"} {
+			error "argument '$key' doesn't start with a dash"
+		}
+
+		switch -exact -- $key {
+			"-brokers" {
+				set brokers $value
+			}
+
+			default {
+				error "argument '$key' unrecognized, must be one of '-brokers'"
+			}
+		}
+	}
+}
+
+
 #
 # setup - create a kafka master object if one hasn't already been created
 #
-proc setup {} {
+proc setup {args} {
 	variable masterIsSetup
+
+	handle_args $args
 
 	if {$masterIsSetup} {
 		return
@@ -30,13 +54,14 @@ proc setup {} {
 	::kafka::kafka create ::kafka::master
 	logger "created ::kafka::master"
 	set masterIsSetup 1
+
 }
 
 #
 # setup_consumer - create a kafka consumer object if one hasn't already
 # been created.  perform basic setup if necessary.
 #
-proc setup_consumer {} {
+proc setup_consumer {args} {
 	variable consumerIsSetup
 	variable brokers
 
@@ -44,7 +69,7 @@ proc setup_consumer {} {
 		return
 	}
 
-	setup
+	setup {*}$args
 
 	master consumer_creator ::kafka::consumer
 	consumer add_brokers $brokers
@@ -58,7 +83,7 @@ proc setup_consumer {} {
 # setup_producer - create a kafka producer object if one hasn't already
 # been created.  perform basic setup if necessary.
 #
-proc setup_producer {} {
+proc setup_producer {args} {
 	variable producerIsSetup
 	variable brokers
 
@@ -66,7 +91,7 @@ proc setup_producer {} {
 		return
 	}
 
-	setup
+	setup {*}$args
 
 	master producer_creator ::kafka::producer
 	producer add_brokers $brokers
@@ -82,13 +107,8 @@ proc setup_producer {} {
 # brokers - specify a list of brokers
 #
 proc brokers {brokerList} {
-	variable brokers
-
-	set brokers $brokerList
-
-	setup
-
-	logger "set brokers to $brokerList"
+	setup -brokers $brokerList
+	#logger "set brokers to $brokerList"
 }
 
 #
@@ -98,7 +118,7 @@ proc brokers {brokerList} {
 proc topic_producer {name topic} {
 	setup_producer
 
-	logger "creating producer $name for topic $topic"
+	#logger "creating producer $name for topic $topic"
 	return [producer new_topic $name $topic]
 }
 
@@ -109,7 +129,7 @@ proc topic_producer {name topic} {
 proc topic_consumer {name topic} {
 	setup_consumer
 
-	logger "creating consumer $name for topic $topic"
+	#logger "creating consumer $name for topic $topic"
 	return [consumer new_topic $name $topic]
 }
 
