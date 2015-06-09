@@ -98,7 +98,7 @@ Methods of kafka interface object
 
  If invoked with one or more pairs of property and value arguments, sets the value of each property-value pair into the configuration properties.
 
-Returns a Tcl error if it fails.
+ Returns a Tcl error if it fails.
 
 * *$kafka* **producer_creator** *cmdName*
 
@@ -122,19 +122,19 @@ Returns a Tcl error if it fails.
 
 * *$kafka* **delivery_report *option* *?args?*
 
-** *$kafka* **delivery_report** **callback** *command*
+* *$kafka* **delivery_report** **callback** *command*
 
  Invoke *command* when kafka cpp-driver delivery report callbacks are received.
 
  Data returned currently is the payload, partition and offset.
 
-** *$kafka* **delivery_report** **every** *count*
+* *$kafka* **delivery_report** **every** *count*
 
  Only perform the delivery report callback event in Tcl every *count* delivery reports received, default 1 for every report received to call back to Tcl.  If set to 100, for instance, the first and every hundredth delivery report callback received would invoke the callback routine.
 
  If set to 0, no delivery reports make it back to Tcl unless the **sample** option is invoked or a different delivery count is selected.
 
-** *$kafka* **delivery_report** **sample**
+* *$kafka* **delivery_report** **sample**
 
  Sets that the next delivery report callback received will invoke the Tcl callback.  This is so that you could for instance obtain the offset periodically.
 
