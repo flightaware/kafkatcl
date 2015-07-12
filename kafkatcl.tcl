@@ -13,8 +13,15 @@ namespace eval ::kafka  {
 	variable producerIsSetup 0
 	variable masterIsSetup 0
 	variable brokers 127.0.0.1
+	variable loggingEnabled 0
 
 proc logger {message} {
+	variable loggingEnabled
+
+	if {!$loggingEnabled} {
+		return
+	}
+
 	puts stderr "kafka: $message"
 }
 
