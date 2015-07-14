@@ -259,6 +259,18 @@ Methods of kafka topic producer object
 
  Works the same as **config** for consumer handle (topic-creating) objects.
 
+* *$topic* **info** **topic**
+
+Return the name of the topic.
+
+* *$topic* **info** **partitions**
+
+Return the number of partitions defined for the topic.
+
+* *$topic* **info** **consistent_partition** *key*
+
+Return the partition number that the Kafka consistent partitioner will return for the given key for the number of partitions defined for the topic.
+
 * *$topic* **delete**
 
  Delete the producer object, destroying the command.
@@ -308,19 +320,27 @@ Methods of kafka topic consumer object
 
  NOTE This isn't quite right.  You shouldn't have to call this repeatedly, or even at all, like it should be handled automatically in the Tcl event loop.  An issue is getting overwhelmed by data, too.  More to come...
 
-* *$topic* **delte**
-
- Delete the topic, destorying the corresponding Tcl command.
-
 ```
 consumer consume_callback 0 5000 callback
 ```
 
  Consume messages from partition 0 by invoking the routine **callback** and timeout after a maximum of 5000 ms.
 
+* *$topic* **info** **topic**
+
+Return the name of the topic.
+
+* *$topic* **info** **partitions**
+
+Return the number of partitions defined for the topic.
+
+* *$topic* **info** **consistent_partition** *key*
+
+Return the partition number that the Kafka consistent partitioner will return for the given key for the number of partitions defined for the topic.
+
 * *$topic* **delete**
 
- Delete the topic object.
+ Delete the topic, destorying the corresponding Tcl command.
 
 Methods of kafka topic consumer queue object
 ---

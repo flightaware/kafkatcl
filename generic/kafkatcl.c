@@ -1925,11 +1925,25 @@ kafkatcl_partitioner_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf,
 	return TCL_OK;
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_handle_topic_info --
+ *
+ *    given a pointer to a topic client data and an objc and objv for
+ *    a topic producer or topic consumer object, handle the "info"
+ *    suboption for that topic consumer or producer
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
 int
 kafkatcl_handle_topic_info (Tcl_Interp *interp, kafkatcl_topicClientData *kt, int objc, Tcl_Obj *CONST objv[]) {
 	int suboptIndex;
 
-	if (objc != 3) {
+	if ((objc < 3) || (objc > 4)) {
 		Tcl_WrongNumArgs (interp, 2, objv, "option");
 		return TCL_ERROR;
 	}
@@ -1937,14 +1951,14 @@ kafkatcl_handle_topic_info (Tcl_Interp *interp, kafkatcl_topicClientData *kt, in
 	static CONST char *subOptions[] = {
 		"name",
 		"partitions",
-		"consistent_hash",
+		"consistent_partition",
 		NULL
 	};
 
 	enum subOptions {
 		SUBOPT_NAME,
 		SUBOPT_PARTITIONS,
-		SUBOPT_CONSISTENT_HASH
+		SUBOPT_CONSISTENT_PARTITION
 	};
 
 	// argument must be one of the subOptions defined above
@@ -1961,14 +1975,25 @@ kafkatcl_handle_topic_info (Tcl_Interp *interp, kafkatcl_topicClientData *kt, in
 
 	switch ((enum subOptions) suboptIndex) {
 		case SUBOPT_NAME: {
+			if (objc != 3) {
+				Tcl_WrongNumArgs (interp, 3, objv, "");
+				return TCL_ERROR;
+			}
+
 			Tcl_SetObjResult (interp, Tcl_NewStringObj (kt->topic, -1));
+			break;
 		}
 
 		case SUBOPT_PARTITIONS: {
+			if (objc != 3) {
+				Tcl_WrongNumArgs (interp, 3, objv, "");
+				return TCL_ERROR;
+			}
+
 			return kafkatcl_meta_topic_partitions (kh, kt->topic);
 		}
 
-		case SUBOPT_CONSISTENT_HASH: {
+		case SUBOPT_CONSISTENT_PARTITION: {
 			char *key = NULL;
 			int keyLen = 0;
 			int whichPartition;
