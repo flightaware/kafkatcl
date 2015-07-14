@@ -63,10 +63,15 @@ kafkatcl_topicObjectDelete (ClientData clientData)
 
 	rd_kafka_topic_destroy (kt->rkt);
 
+	// free the topic name
+	ckfree (kt->topic);
+
+	// free the consume callback object if it exists
 	if (kt->consumeCallbackObj != NULL) {
 		Tcl_DecrRefCount (kt->consumeCallbackObj);
 	}
 
+	// remove the topic instance from the list of topic consumers
 	KT_LIST_REMOVE (kt, topicConsumerInstance);
 
     ckfree((char *)clientData);
@@ -1353,6 +1358,257 @@ void kafkatcl_statistics_callback (rd_kafka_t *rk, char *json, size_t json_len, 
 /*
  *----------------------------------------------------------------------
  *
+ * kafkatcl_meta_topic_list --
+ *
+ *    given a handle client data create a tcl list of all of the topics
+ *    and set the interpreter result to it if successful
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_meta_topic_list (kafkatcl_handleClientData *kh) {
+	Tcl_Interp *interp = kh->interp;
+	const struct rd_kafka_metadata *metadata = kh->metadata;
+	int i;
+	Tcl_Obj *listObj = Tcl_NewObj();
+
+	for (i = 0 ; i < metadata->topic_cnt ; i++) {
+		const struct rd_kafka_metadata_topic *t = &metadata->topics[i];
+
+		if (Tcl_ListObjAppendElement (interp, listObj, Tcl_NewStringObj (t->topic, -1)) == TCL_ERROR) {
+			return TCL_ERROR;
+		}
+	}
+	Tcl_SetObjResult (interp, listObj);
+	return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_meta_find_topic --
+ *
+ *    given a handle client data and a topic name,
+ *    return the matching const struct rd_kafka_metadata_topic *
+ *    pointer or NULL if none is found
+ *
+ * Results:
+ *    the matching const struct rd_kafka_metadata_topic * or NULL
+ *
+ *----------------------------------------------------------------------
+ */
+const struct rd_kafka_metadata_topic *
+kafkatcl_meta_find_topic (kafkatcl_handleClientData *kh, char *topic) {
+	const struct rd_kafka_metadata *metadata = kh->metadata;
+	int i;
+
+	for (i = 0 ; i < metadata->topic_cnt ; i++) {
+		const struct rd_kafka_metadata_topic *t = &metadata->topics[i];
+
+		if (strcmp (t->topic, topic) == 0) {
+			return t;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_meta_find_topic_tcl_result --
+ *
+ *    given a handle client data and a topic name,
+ *    set the passed-in const struct rd_kafka_metadata_topic *
+ *    to the matching metadata topic structure or to NULL if none is found
+ *
+ *    Set an error message into the Tcl interpreter if there is an
+ *    error and return TCL_OK if the topic was found or TCL_ERROR if
+ *    it wasn't
+ *
+ * Results:
+ *    A standard Tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_meta_find_topic_tcl_result (kafkatcl_handleClientData *kh, char *topicName, const struct rd_kafka_metadata_topic **topicPtr) {
+	const struct rd_kafka_metadata *metadata = kh->metadata;
+	int i;
+	Tcl_Interp *interp = kh->interp;
+
+	for (i = 0 ; i < metadata->topic_cnt ; i++) {
+		const struct rd_kafka_metadata_topic *t = &metadata->topics[i];
+
+		if (strcmp (t->topic, topicName) == 0) {
+			*topicPtr = t;
+			return TCL_OK;
+		}
+	}
+
+	*topicPtr = NULL;
+	Tcl_ResetResult (interp);
+	Tcl_AppendResult (interp, "kafka error: topic '", topicName, "' not found", NULL);
+	return TCL_ERROR;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_meta_topic_partitions --
+ *
+ *    given a handle client data and a topic name,
+ *    set the interpreter result to the number of partitions
+ *    covering that topic if successful
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_meta_topic_partitions (kafkatcl_handleClientData *kh, char *topic) {
+	const struct rd_kafka_metadata_topic *t;
+	Tcl_Interp *interp = kh->interp;
+
+	if (kafkatcl_meta_find_topic_tcl_result (kh, topic, &t) == TCL_ERROR) {
+		return TCL_ERROR;
+	}
+	Tcl_SetObjResult (interp, Tcl_NewIntObj (t->partition_cnt));
+	return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_meta_broker_list --
+ *
+ *    given a handle client data create a tcl list of all of the brokers
+ *    and set the interpreter result to it if successful
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_meta_broker_list (kafkatcl_handleClientData *kh) {
+	Tcl_Interp *interp = kh->interp;
+	const struct rd_kafka_metadata *metadata = kh->metadata;
+	int i;
+	Tcl_Obj *listObj = Tcl_NewObj();
+	struct rd_kafka_metadata_broker *broker;
+
+#define BROKER_STRING_FORMAT "%s:%d"
+
+	for (i = 0 ; i < metadata->broker_cnt ; i++) {
+		broker = &metadata->brokers[i];
+		// figure out the size of the string we need
+		int brokerStringLength = snprintf (NULL, 0, BROKER_STRING_FORMAT, broker->host, broker->port) + 1;
+		char *brokerString = ckalloc (brokerStringLength);
+		snprintf (brokerString, brokerStringLength, BROKER_STRING_FORMAT, broker->host, broker->port);
+
+		if (Tcl_ListObjAppendElement (interp, listObj, Tcl_NewStringObj (brokerString, brokerStringLength)) == TCL_ERROR) {
+			ckfree (brokerString);
+			return TCL_ERROR;
+		}
+		ckfree (brokerString);
+	}
+	Tcl_SetObjResult (interp, listObj);
+	return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_refresh_metadata --
+ *
+ *    fetch the metadata into our kafkatcl_handleClientData structure
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_refresh_metadata (kafkatcl_handleClientData *kh) {
+	Tcl_Interp *interp = kh->interp;
+	rd_kafka_t *rk = kh->rk;
+
+	// destroy metadata if it exists
+	if (kh->metadata != NULL) {
+		rd_kafka_metadata_destroy (kh->metadata);
+	}
+
+	rd_kafka_resp_err_t err = rd_kafka_metadata (rk, 0, NULL, &kh->metadata, 5000);
+
+	if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+		return kafkatcl_kafka_error_to_tcl (interp, err, "failed to acquire metadata");
+	}
+
+	return TCL_OK;
+}
+
+static void
+metadata_print (const char *topic, const struct rd_kafka_metadata *metadata) {
+	int i, j, k;
+
+	printf("Metadata for %s (from broker %"PRId32": %s):\n",
+	   topic ? : "all topics",
+	   metadata->orig_broker_id,
+	   metadata->orig_broker_name);
+
+
+	/* Iterate brokers */
+	printf(" %i brokers:\n", metadata->broker_cnt);
+	for (i = 0 ; i < metadata->broker_cnt ; i++)
+		printf("  broker %"PRId32" at %s:%i\n", metadata->brokers[i].id, metadata->brokers[i].host, metadata->brokers[i].port);
+
+	/* Iterate topics */
+	printf(" %i topics:\n", metadata->topic_cnt);
+	for (i = 0 ; i < metadata->topic_cnt ; i++) {
+		const struct rd_kafka_metadata_topic *t = &metadata->topics[i];
+
+		printf("  topic \"%s\" with %i partitions:", t->topic, t->partition_cnt);
+		if (t->err) {
+			printf(" %s", rd_kafka_err2str(t->err));
+			if (t->err == RD_KAFKA_RESP_ERR_LEADER_NOT_AVAILABLE)
+				printf(" (try again)");
+		}
+		printf("\n");
+
+		/* Iterate topic's partitions */
+		for (j = 0 ; j < t->partition_cnt ; j++) {
+			const struct rd_kafka_metadata_partition *p;
+			p = &t->partitions[j];
+			printf("    partition %"PRId32", " "leader %"PRId32", replicas: ", p->id, p->leader);
+
+			/* Iterate partition's replicas */
+			for (k = 0 ; k < p->replica_cnt ; k++) {
+				printf("%s%"PRId32, k > 0 ? ",":"", p->replicas[k]);
+			}
+
+			/* Iterate partition's ISRs */
+			printf(", isrs: ");
+
+			for (k = 0 ; k < p->isr_cnt ; k++) {
+				printf("%s%"PRId32, k > 0 ? ",":"", p->isrs[k]);
+				if (p->err) {
+					printf(", %s\n", rd_kafka_err2str(p->err));
+				} else {
+					printf("\n");
+				}
+			}
+		}
+	}
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
  * kafkatcl_consume_callback_eventProc --
  *
  *    this routine is called by the Tcl event handler to process error
@@ -1669,6 +1925,76 @@ kafkatcl_partitioner_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf,
 	return TCL_OK;
 }
 
+int
+kafkatcl_handle_topic_info (Tcl_Interp *interp, kafkatcl_topicClientData *kt, int objc, Tcl_Obj *CONST objv[]) {
+	int suboptIndex;
+
+	if (objc != 3) {
+		Tcl_WrongNumArgs (interp, 2, objv, "option");
+		return TCL_ERROR;
+	}
+
+	static CONST char *subOptions[] = {
+		"name",
+		"partitions",
+		"consistent_hash",
+		NULL
+	};
+
+	enum subOptions {
+		SUBOPT_NAME,
+		SUBOPT_PARTITIONS,
+		SUBOPT_CONSISTENT_HASH
+	};
+
+	// argument must be one of the subOptions defined above
+	if (Tcl_GetIndexFromObj (interp, objv[2], subOptions, "suboption",
+		TCL_EXACT, &suboptIndex) != TCL_OK) {
+		return TCL_ERROR;
+	}
+
+	kafkatcl_handleClientData *kh = kt->kh;
+
+	if (kh->metadata == NULL) {
+		kafkatcl_refresh_metadata (kh);
+	}
+
+	switch ((enum subOptions) suboptIndex) {
+		case SUBOPT_NAME: {
+			Tcl_SetObjResult (interp, Tcl_NewStringObj (kt->topic, -1));
+		}
+
+		case SUBOPT_PARTITIONS: {
+			return kafkatcl_meta_topic_partitions (kh, kt->topic);
+		}
+
+		case SUBOPT_CONSISTENT_HASH: {
+			char *key = NULL;
+			int keyLen = 0;
+			int whichPartition;
+			const struct rd_kafka_metadata_topic *t;
+
+			if (objc != 4) {
+				Tcl_WrongNumArgs (interp, 3, objv, "key");
+				return TCL_ERROR;
+			}
+
+			if (kafkatcl_meta_find_topic_tcl_result (kh, kt->topic, &t) == TCL_ERROR) {
+				return TCL_ERROR;
+			}
+
+			key = Tcl_GetStringFromObj (objv[3], &keyLen);
+
+			whichPartition = rd_kafka_msg_partitioner_consistent (kt->rkt, key, keyLen, t->partition_cnt, NULL, NULL);
+
+			Tcl_SetObjResult (interp, Tcl_NewIntObj (whichPartition));
+			break;
+		}
+	}
+	return TCL_OK;
+}
+
+
 /*
  *----------------------------------------------------------------------
  *
@@ -1692,6 +2018,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
     static CONST char *options[] = {
         "consume",
         "consume_batch",
+		"info",
         "consume_start",
         "consume_start_queue",
         "consume_stop",
@@ -1703,6 +2030,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
     enum options {
 		OPT_CONSUME,
 		OPT_CONSUME_BATCH,
+		OPT_INFO,
 		OPT_CONSUME_START,
 		OPT_CONSUME_START_QUEUE,
 		OPT_CONSUME_STOP,
@@ -1858,6 +2186,10 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			break;
 		}
 
+		case OPT_INFO: {
+			return kafkatcl_handle_topic_info (interp, kt, objc, objv);
+		}
+
 		case OPT_CONSUME_START: {
 			int64_t offset;
 			int partition;
@@ -1979,6 +2311,7 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
     static CONST char *options[] = {
         "produce",
         "produce_batch",
+		"info",
         "delete",
         NULL
     };
@@ -1986,6 +2319,7 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
     enum options {
 		OPT_PRODUCE,
 		OPT_PRODUCE_BATCH,
+		OPT_INFO,
 		OPT_DELETE
     };
 
@@ -2102,6 +2436,10 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			break;
 		}
 
+		case OPT_INFO: {
+			return kafkatcl_handle_topic_info (interp, kt, objc, objv);
+		}
+
 		case OPT_DELETE: {
 			if (objc != 2) {
 				Tcl_WrongNumArgs (interp, 2, objv, "");
@@ -2172,6 +2510,9 @@ kafkatcl_createTopicObjectCommand (kafkatcl_handleClientData *kh, char *cmdName,
 	if (kh->kafkaType == RD_KAFKA_CONSUMER) {
 		KT_LIST_INSERT_HEAD (&kh->ko->topicConsumers, kt, topicConsumerInstance);
 	}
+
+	kt->topic = ckalloc (strlen (topic) + 1);
+	strcpy (kt->topic, topic);
 
 #define TOPIC_STRING_FORMAT "kafka_topic%lu"
 	// if cmdName is #auto, generate a unique name for the object
@@ -2396,257 +2737,6 @@ kafkatcl_add_brokers (kafkatcl_handleClientData *kh, char *brokers) {
 		return TCL_ERROR;
 	}
 	return TCL_OK;
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_meta_topic_list --
- *
- *    given a handle client data create a tcl list of all of the topics
- *    and set the interpreter result to it if successful
- *
- * Results:
- *    a standard tcl result
- *
- *----------------------------------------------------------------------
- */
-int
-kafkatcl_meta_topic_list (kafkatcl_handleClientData *kh) {
-	Tcl_Interp *interp = kh->interp;
-	const struct rd_kafka_metadata *metadata = kh->metadata;
-	int i;
-	Tcl_Obj *listObj = Tcl_NewObj();
-
-	for (i = 0 ; i < metadata->topic_cnt ; i++) {
-		const struct rd_kafka_metadata_topic *t = &metadata->topics[i];
-
-		if (Tcl_ListObjAppendElement (interp, listObj, Tcl_NewStringObj (t->topic, -1)) == TCL_ERROR) {
-			return TCL_ERROR;
-		}
-	}
-	Tcl_SetObjResult (interp, listObj);
-	return TCL_OK;
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_meta_find_topic --
- *
- *    given a handle client data and a topic name,
- *    return the matching const struct rd_kafka_metadata_topic *
- *    pointer or NULL if none is found
- *
- * Results:
- *    the matching const struct rd_kafka_metadata_topic * or NULL
- *
- *----------------------------------------------------------------------
- */
-const struct rd_kafka_metadata_topic *
-kafkatcl_meta_find_topic (kafkatcl_handleClientData *kh, char *topic) {
-	const struct rd_kafka_metadata *metadata = kh->metadata;
-	int i;
-
-	for (i = 0 ; i < metadata->topic_cnt ; i++) {
-		const struct rd_kafka_metadata_topic *t = &metadata->topics[i];
-
-		if (strcmp (t->topic, topic) == 0) {
-			return t;
-		}
-	}
-
-	return NULL;
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_meta_find_topic_tcl_result --
- *
- *    given a handle client data and a topic name,
- *    set the passed-in const struct rd_kafka_metadata_topic *
- *    to the matching metadata topic structure or to NULL if none is found
- *
- *    Set an error message into the Tcl interpreter if there is an
- *    error and return TCL_OK if the topic was found or TCL_ERROR if
- *    it wasn't
- *
- * Results:
- *    A standard Tcl result
- *
- *----------------------------------------------------------------------
- */
-int
-kafkatcl_meta_find_topic_tcl_result (kafkatcl_handleClientData *kh, char *topicName, const struct rd_kafka_metadata_topic **topicPtr) {
-	const struct rd_kafka_metadata *metadata = kh->metadata;
-	int i;
-	Tcl_Interp *interp = kh->interp;
-
-	for (i = 0 ; i < metadata->topic_cnt ; i++) {
-		const struct rd_kafka_metadata_topic *t = &metadata->topics[i];
-
-		if (strcmp (t->topic, topicName) == 0) {
-			*topicPtr = t;
-			return TCL_OK;
-		}
-	}
-
-	*topicPtr = NULL;
-	Tcl_ResetResult (interp);
-	Tcl_AppendResult (interp, "kafka error: topic '", topicName, "' not found", NULL);
-	return TCL_ERROR;
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_meta_topic_partitions --
- *
- *    given a handle client data and a topic name,
- *    set the interpreter result to the number of partitions
- *    covering that topic if successful
- *
- * Results:
- *    a standard tcl result
- *
- *----------------------------------------------------------------------
- */
-int
-kafkatcl_meta_topic_partitions (kafkatcl_handleClientData *kh, char *topic) {
-	const struct rd_kafka_metadata_topic *t;
-	Tcl_Interp *interp = kh->interp;
-
-	if (kafkatcl_meta_find_topic_tcl_result (kh, topic, &t) == TCL_ERROR) {
-		return TCL_ERROR;
-	}
-	Tcl_SetObjResult (interp, Tcl_NewIntObj (t->partition_cnt));
-	return TCL_OK;
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_meta_broker_list --
- *
- *    given a handle client data create a tcl list of all of the brokers
- *    and set the interpreter result to it if successful
- *
- * Results:
- *    a standard tcl result
- *
- *----------------------------------------------------------------------
- */
-int
-kafkatcl_meta_broker_list (kafkatcl_handleClientData *kh) {
-	Tcl_Interp *interp = kh->interp;
-	const struct rd_kafka_metadata *metadata = kh->metadata;
-	int i;
-	Tcl_Obj *listObj = Tcl_NewObj();
-	struct rd_kafka_metadata_broker *broker;
-
-#define BROKER_STRING_FORMAT "%s:%d"
-
-	for (i = 0 ; i < metadata->broker_cnt ; i++) {
-		broker = &metadata->brokers[i];
-		// figure out the size of the string we need
-		int brokerStringLength = snprintf (NULL, 0, BROKER_STRING_FORMAT, broker->host, broker->port) + 1;
-		char *brokerString = ckalloc (brokerStringLength);
-		snprintf (brokerString, brokerStringLength, BROKER_STRING_FORMAT, broker->host, broker->port);
-
-		if (Tcl_ListObjAppendElement (interp, listObj, Tcl_NewStringObj (brokerString, brokerStringLength)) == TCL_ERROR) {
-			ckfree (brokerString);
-			return TCL_ERROR;
-		}
-		ckfree (brokerString);
-	}
-	Tcl_SetObjResult (interp, listObj);
-	return TCL_OK;
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * kafkatcl_refresh_metadata --
- *
- *    fetch the metadata into our kafkatcl_handleClientData structure
- *
- * Results:
- *    a standard tcl result
- *
- *----------------------------------------------------------------------
- */
-int
-kafkatcl_refresh_metadata (kafkatcl_handleClientData *kh) {
-	Tcl_Interp *interp = kh->interp;
-	rd_kafka_t *rk = kh->rk;
-
-	// destroy metadata if it exists
-	if (kh->metadata != NULL) {
-		rd_kafka_metadata_destroy (kh->metadata);
-	}
-
-	rd_kafka_resp_err_t err = rd_kafka_metadata (rk, 0, NULL, &kh->metadata, 5000);
-
-	if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
-		return kafkatcl_kafka_error_to_tcl (interp, err, "failed to acquire metadata");
-	}
-
-	return TCL_OK;
-}
-
-static void
-metadata_print (const char *topic, const struct rd_kafka_metadata *metadata) {
-	int i, j, k;
-
-	printf("Metadata for %s (from broker %"PRId32": %s):\n",
-	   topic ? : "all topics",
-	   metadata->orig_broker_id,
-	   metadata->orig_broker_name);
-
-
-	/* Iterate brokers */
-	printf(" %i brokers:\n", metadata->broker_cnt);
-	for (i = 0 ; i < metadata->broker_cnt ; i++)
-		printf("  broker %"PRId32" at %s:%i\n", metadata->brokers[i].id, metadata->brokers[i].host, metadata->brokers[i].port);
-
-	/* Iterate topics */
-	printf(" %i topics:\n", metadata->topic_cnt);
-	for (i = 0 ; i < metadata->topic_cnt ; i++) {
-		const struct rd_kafka_metadata_topic *t = &metadata->topics[i];
-
-		printf("  topic \"%s\" with %i partitions:", t->topic, t->partition_cnt);
-		if (t->err) {
-			printf(" %s", rd_kafka_err2str(t->err));
-			if (t->err == RD_KAFKA_RESP_ERR_LEADER_NOT_AVAILABLE)
-				printf(" (try again)");
-		}
-		printf("\n");
-
-		/* Iterate topic's partitions */
-		for (j = 0 ; j < t->partition_cnt ; j++) {
-			const struct rd_kafka_metadata_partition *p;
-			p = &t->partitions[j];
-			printf("    partition %"PRId32", " "leader %"PRId32", replicas: ", p->id, p->leader);
-
-			/* Iterate partition's replicas */
-			for (k = 0 ; k < p->replica_cnt ; k++) {
-				printf("%s%"PRId32, k > 0 ? ",":"", p->replicas[k]);
-			}
-
-			/* Iterate partition's ISRs */
-			printf(", isrs: ");
-
-			for (k = 0 ; k < p->isr_cnt ; k++) {
-				printf("%s%"PRId32, k > 0 ? ",":"", p->isrs[k]);
-				if (p->err) {
-					printf(", %s\n", rd_kafka_err2str(p->err));
-				} else {
-					printf("\n");
-				}
-			}
-		}
-	}
 }
 
 /*

@@ -157,6 +157,7 @@ typedef struct kafkatcl_topicClientData
 	rd_kafka_topic_t *rkt;
 	kafkatcl_handleClientData *kh;
 	Tcl_Command cmdToken;
+	char *topic;
 	Tcl_Obj *consumeCallbackObj;
 	KT_LIST_ENTRY(kafkatcl_topicClientData) topicConsumerInstance;
 } kafkatcl_topicClientData;
