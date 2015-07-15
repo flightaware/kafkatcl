@@ -124,7 +124,6 @@ typedef struct kafkatcl_topicClientData
 	kafkatcl_handleClientData *kh;
 	Tcl_Command cmdToken;
 	char *topic;
-	Tcl_Obj *consumeCallbackObj;
 	KT_LIST_ENTRY(kafkatcl_topicClientData) topicConsumerInstance;
 	KT_LIST_HEAD(runningConsumers, kafkatcl_runningConsumer) runningConsumers;
 } kafkatcl_topicClientData;
@@ -136,7 +135,6 @@ typedef struct kafkatcl_queueClientData
 	rd_kafka_queue_t *rkqu;
 	kafkatcl_handleClientData *kh;
 	Tcl_Command cmdToken;
-	Tcl_Obj *consumeCallbackObj;
 	KT_LIST_ENTRY(kafkatcl_queueClientData) queueConsumerInstance;
 } kafkatcl_queueClientData;
 
@@ -175,20 +173,6 @@ typedef struct kafkatcl_statsEvent
 	size_t jsonLen;
 } kafkatcl_statsEvent;
 
-typedef struct kafkatcl_consumeCallbackEvent
-{
-    Tcl_Event event;
-	kafkatcl_topicClientData *kt;
-	rd_kafka_message_t rkmessage;
-} kafkatcl_consumeCallbackEvent;
-
-typedef struct kafkatcl_consumeCallbackQueueEvent
-{
-    Tcl_Event event;
-	kafkatcl_queueClientData *kq;
-	rd_kafka_message_t rkmessage;
-} kafkatcl_consumeCallbackQueueEvent;
-
 typedef struct kafkatcl_runningConsumer {
 	kafkatcl_topicClientData *kt;
 	kafkatcl_queueClientData *kq;
@@ -196,6 +180,13 @@ typedef struct kafkatcl_runningConsumer {
 	Tcl_Obj *callbackObj;
 	KT_LIST_ENTRY(kafkatcl_runningConsumer) runningConsumerInstance;
 } kafkatcl_runningConsumer;
+
+typedef struct kafkatcl_consumeCallbackEvent
+{
+    Tcl_Event event;
+	kafkatcl_runningConsumer *krc;
+	rd_kafka_message_t rkmessage;
+} kafkatcl_consumeCallbackEvent;
 
 
 /* vim: set ts=4 sw=4 sts=4 noet : */

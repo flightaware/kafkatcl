@@ -278,11 +278,13 @@ Return the partition number that the Kafka consistent partitioner will return fo
 Methods of kafka topic consumer object
 ---
 
-* *$topic* **consume_start** *partition* *offset*
+* *$topic* **consume_start** *partition* *offset* *?callback?*
 
  Start consuming the established topic for the specified *partition* starting at offset *offset*.
 
  *offset* can be **beginning** to start consuming at the beginning of the partition (i.e. the oldest message in the partition), **end** to start consuming from the end of the partition, **stored** to start consuming from the offset retrieved from the offset store, a positive integer, which starts consuming starting from the specified message number from that partition, or a negative integer, which says to start consuming that many messages from the end.
+
+ If callback is specified then the callback will be invoked with an argument containing a list of key-value pairs representing an error or a successfully received message.
 
 * *$topic* **consume_start_queue** *partition* *offset* *queue*
 
@@ -298,33 +300,15 @@ Methods of kafka topic consumer object
 
  Consume one message from the topic object for the specified partition received within *timeout* milliseconds into array *array*.  If there's an error, you get a Tcl error.
 
+Returns 1 on success and 0 if you reach the end of the partition.  You can read more subsequently.
+
 * *$topic* **consume_batch** *partition* *timeout* *count* *array* *code*
 
  Consume up to *count* messages or however many have come in less than that within *timeout* milliseconds.
 
  For each message received fill the array *array* with fields from the message containing the message *payload*, *partition*, *offset*, *topic* name and optional *key*, repeatedly executing *code* for each message received.
 
- This method returns number of rows processed.
-
-* *$topic* **consume_callback** *partition* *timeoutMS* *command*
-
- Repeated invoke *command* with one argument containing a list of key-value pairs for a received message, or a list of key-value pairs reporting an error.
-
- If a message was successfully received the fields will be *payload*, *partition*, *offset*, *topic* and, optionally, *key*.
-
- If an error is received the fields will be *error*, *code*, and *message* corresponding to the kafka error string returned by rd_kafka_err2str, the kafka error code and an error message.
-
-**consume_callback** returns the number of messages consumed.
-
- Note that you have to call *consume_callback* repeatedly and it may return 0 if no data is available at the time it is called.  Subsequent calls will return nonzero when messages are available.
-
- NOTE This isn't quite right.  You shouldn't have to call this repeatedly, or even at all, like it should be handled automatically in the Tcl event loop.  An issue is getting overwhelmed by data, too.  More to come...
-
-```
-consumer consume_callback 0 5000 callback
-```
-
- Consume messages from partition 0 by invoking the routine **callback** and timeout after a maximum of 5000 ms.
+ This method returns number of rows processed, 0 if the end of the partition is reached.
 
 * *$topic* **info** **topic**
 
@@ -361,18 +345,6 @@ Queue objects support the following methods:
  For each message received the array *array* is filled with fields from the message containing the message *payload*, *partition*, *offset*, *topic* name and optional *key*, repeatedly executing *code* for each message received.
 
  The method returns number of rows processed.
-
-* *$queue* **consume_callback** *timeout* *command*
-
- As with using a callback to consume from a topic, repeatedly invokes *command* with one argument containing a list of key-value pairs for a received message, or a list of key-value pairs reporting an error.
-
- If the message was successfully received then the pairs will be *payload*, *partition*, *offset*, *topic* and, optionally, *key*.
-
- If an error is received the fields will be *error*, *code*, and *message* corresponding to the kafka error string returned by rd_kafka_err2str, the kafka error code and an error message.
-
-**consume_callback** returns the number of messages consumed.
-
- Note that you have to invoke the *consume_callback* method repeatedly, and it will return 0 if no data is available at the time it is called.  Later, though, calling it again may well produce messages.
 
 *$queue* **delete**
 

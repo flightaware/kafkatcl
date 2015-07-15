@@ -69,11 +69,6 @@ kafkatcl_topicObjectDelete (ClientData clientData)
 	// free the topic name
 	ckfree (kt->topic);
 
-	// free the consume callback object if it exists
-	if (kt->consumeCallbackObj != NULL) {
-		Tcl_DecrRefCount (kt->consumeCallbackObj);
-	}
-
 	// remove the topic instance from the list of topic consumers
 	KT_LIST_REMOVE (kt, topicConsumerInstance);
 
@@ -138,10 +133,6 @@ kafkatcl_queueObjectDelete (ClientData clientData)
     assert (kq->kafka_queue_magic == KAFKA_QUEUE_MAGIC);
 
 	rd_kafka_queue_destroy (kq->rkqu);
-
-	if (kq->consumeCallbackObj != NULL) {
-		Tcl_DecrRefCount (kq->consumeCallbackObj);
-	}
 
 	KT_LIST_REMOVE (kq, queueConsumerInstance);
 
@@ -729,6 +720,10 @@ Tcl_Obj *
 kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 	Tcl_Obj *listObj;
 
+	if (rdm->err == RD_KAFKA_RESP_ERR__PARTITION_EOF) {
+		return NULL;
+	}
+
 	if (rdm->err != RD_KAFKA_RESP_ERR_NO_ERROR) {
 		// error message is in the payload
 
@@ -783,6 +778,15 @@ kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 }
 
 
+void
+kafkatcl_unset_response_elements (Tcl_Interp *interp, char *arrayName) {
+	Tcl_UnsetVar2 (interp, arrayName, "payload", 0);
+	Tcl_UnsetVar2 (interp, arrayName, "partition", 0);
+	Tcl_UnsetVar2 (interp, arrayName, "key", 0);
+	Tcl_UnsetVar2 (interp, arrayName, "offset", 0);
+	Tcl_UnsetVar2 (interp, arrayName, "topic", 0);
+}
+
 /*
  *--------------------------------------------------------------
  *
@@ -802,11 +806,11 @@ int
 kafkatcl_message_to_tcl_array (Tcl_Interp *interp, char *arrayName, rd_kafka_message_t *rdm) {
 	if (rdm->err != RD_KAFKA_RESP_ERR_NO_ERROR) {
 		// error message is in the payload
-		Tcl_UnsetVar2 (interp, arrayName, "payload", 0);
-		Tcl_UnsetVar2 (interp, arrayName, "partition", 0);
-		Tcl_UnsetVar2 (interp, arrayName, "key", 0);
-		Tcl_UnsetVar2 (interp, arrayName, "offset", 0);
-		Tcl_UnsetVar2 (interp, arrayName, "topic", 0);
+		kafkatcl_unset_response_elements (interp, arrayName);
+
+		if (rdm->err == RD_KAFKA_RESP_ERR__PARTITION_EOF) {
+			return TCL_BREAK;
+		}
 
 		return kafkatcl_kafka_error_to_tcl (interp, rdm->err, (char *)rdm->payload);
 	}
@@ -1615,7 +1619,7 @@ metadata_print (const char *topic, const struct rd_kafka_metadata *metadata) {
  *
  * kafkatcl_consume_callback_eventProc --
  *
- *    this routine is called by the Tcl event handler to process error
+ *    this routine is called by the Tcl event handler to process consume
  *    callbacks we have gotten from the Kafka cpp-driver
  *
  * Results:
@@ -1632,15 +1636,18 @@ kafkatcl_consume_callback_eventProc (Tcl_Event *tevPtr, int flags) {
 	// Go get that.
 
 	kafkatcl_consumeCallbackEvent *evPtr = (kafkatcl_consumeCallbackEvent *)tevPtr;
-	kafkatcl_topicClientData *kt = evPtr->kt;
-	Tcl_Interp *interp = kt->kh->interp;
+	kafkatcl_runningConsumer *krc = evPtr->krc;
+	Tcl_Interp *interp = krc->kt->kh->interp;
 
 	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage);
 
 	// even if this fails we still want the event taken off the queue
 	// this function will do the background error thing if there is a tcl
 	// error running the callback
-	kafkatcl_invoke_callback_with_argument (interp, kt->consumeCallbackObj, listObj);
+
+	if (listObj != NULL) {
+		kafkatcl_invoke_callback_with_argument (interp, krc->callbackObj, listObj);
+	}
 
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
 	// it and don't want it removed from the queue
@@ -1650,54 +1657,10 @@ kafkatcl_consume_callback_eventProc (Tcl_Event *tevPtr, int flags) {
 /*
  *----------------------------------------------------------------------
  *
- * kafkatcl_consume_callback --
- *
- *    this routine is called by the kafka cpp-driver as a callback
- *    designated by a call to rd_kafka_consume_callback to specify
- *    a routine to be called when messages are available from a
- *    topic consumer
- *
- * Results:
- *    an event is queued to the thread that set up the callback
- *
- *----------------------------------------------------------------------
- */
-
-void
-kafkatcl_consume_callback (rd_kafka_message_t *rkmessage, void *opaque) {
-	kafkatcl_topicClientData *kt = opaque;
-
-	kafkatcl_consumeCallbackEvent *evPtr;
-
-	evPtr = ckalloc (sizeof (kafkatcl_consumeCallbackEvent));
-
-	evPtr->event.proc = kafkatcl_consume_callback_eventProc;
-	evPtr->kt = kt;
-
-	// structure copy
-	evPtr->rkmessage = *rkmessage;
-
-	// then allocate and copy the payload and possibly the key; we will free
-	// all this in the event handler
-	evPtr->rkmessage.payload = ckalloc (rkmessage->len);
-	memcpy (evPtr->rkmessage.payload, rkmessage->payload, rkmessage->len);
-
-	if (rkmessage->key != NULL) {
-		evPtr->rkmessage.key = ckalloc (rkmessage->key_len);
-		memcpy (evPtr->rkmessage.key, rkmessage->key, rkmessage->key_len);
-	}
-
-	Tcl_ThreadQueueEvent (kt->kh->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
-	return;
-}
-
-/*
- *----------------------------------------------------------------------
- *
  * kafkatcl_consume_callback_queue_eventProc --
  *
- *    this routine is called by the Tcl event handler to process error
- *    callbacks we have gotten from the Kafka cpp-driver
+ *    this routine is called by the Tcl event handler to process consume
+ *    callbacks we have gotten for queues from the Kafka cpp-driver
  *
  * Results:
  *    returns 1 to say we handled the event and the dispatcher can delete it
@@ -1712,16 +1675,16 @@ kafkatcl_consume_callback_queue_eventProc (Tcl_Event *tevPtr, int flags) {
 	// some other stuff that we need.
 	// Go get that.
 
-	kafkatcl_consumeCallbackQueueEvent *evPtr = (kafkatcl_consumeCallbackQueueEvent *)tevPtr;
-	kafkatcl_queueClientData *kq = evPtr->kq;
-	Tcl_Interp *interp = kq->kh->interp;
+	kafkatcl_consumeCallbackEvent *evPtr = (kafkatcl_consumeCallbackEvent *)tevPtr;
+	kafkatcl_runningConsumer *krc = evPtr->krc;
+	Tcl_Interp *interp = krc->kq->kh->interp;
 
 	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage);
 
 	// even if this fails we still want the event taken off the queue
 	// this function will do the background error thing if there is a tcl
 	// error running the callback
-	kafkatcl_invoke_callback_with_argument (interp, kq->consumeCallbackObj, listObj);
+	kafkatcl_invoke_callback_with_argument (interp, krc->callbackObj, listObj);
 
 	// free the payload
 	ckfree (evPtr->rkmessage.payload);
@@ -1739,12 +1702,12 @@ kafkatcl_consume_callback_queue_eventProc (Tcl_Event *tevPtr, int flags) {
 /*
  *----------------------------------------------------------------------
  *
- * kafkatcl_consume_callback_queue --
+ * kafkatcl_consume_callback --
  *
  *    this routine is called by the kafka cpp-driver as a callback
  *    designated by a call to rd_kafka_consume_callback to specify
  *    a routine to be called when messages are available from a
- *    topic consumer
+ *    topic consumer or queue
  *
  * Results:
  *    an event is queued to the thread that set up the callback
@@ -1753,22 +1716,27 @@ kafkatcl_consume_callback_queue_eventProc (Tcl_Event *tevPtr, int flags) {
  */
 
 void
-kafkatcl_consume_callback_queue (rd_kafka_message_t *rkmessage, void *opaque) {
-	kafkatcl_queueClientData *kq = opaque;
+kafkatcl_consume_callback (rd_kafka_message_t *rkmessage, void *opaque) {
+	kafkatcl_runningConsumer *krc = opaque;
+	kafkatcl_topicClientData *kt = krc->kt;
 
-	kafkatcl_consumeCallbackQueueEvent *evPtr;
+	kafkatcl_consumeCallbackEvent *evPtr;
 
-	evPtr = ckalloc (sizeof (kafkatcl_consumeCallbackQueueEvent));
+	evPtr = ckalloc (sizeof (kafkatcl_consumeCallbackEvent));
 
-	evPtr->event.proc = kafkatcl_consume_callback_queue_eventProc;
-	evPtr->kq = kq;
+	evPtr->krc = krc;
+
+	if (krc->kq == NULL) {
+		evPtr->event.proc = kafkatcl_consume_callback_eventProc;
+	} else {
+		evPtr->event.proc = kafkatcl_consume_callback_queue_eventProc;
+	}
 
 	// structure copy
 	evPtr->rkmessage = *rkmessage;
 
 	// then allocate and copy the payload and possibly the key; we will free
 	// all this in the event handler
-	// NB bears too much in common with kafkatcl_consume_callback
 	evPtr->rkmessage.payload = ckalloc (rkmessage->len);
 	memcpy (evPtr->rkmessage.payload, rkmessage->payload, rkmessage->len);
 
@@ -1777,7 +1745,7 @@ kafkatcl_consume_callback_queue (rd_kafka_message_t *rkmessage, void *opaque) {
 		memcpy (evPtr->rkmessage.key, rkmessage->key, rkmessage->key_len);
 	}
 
-	Tcl_ThreadQueueEvent (kq->kh->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
+	Tcl_ThreadQueueEvent (kt->kh->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
 	return;
 }
 
@@ -2157,15 +2125,27 @@ int
 kafkatcl_check_consumer_callbacks (kafkatcl_objectClientData *ko) {
 	kafkatcl_topicClientData *kt;
 	int count = 0;
+	int result;
 
+	// for each defined topic consumer
 	KT_LIST_FOREACH(kt, &ko->topicConsumers, topicConsumerInstance) {
 		kafkatcl_runningConsumer *krc;
 
+		// for each running consumer (perhaps multiple partitions)
 		KT_LIST_FOREACH(krc, &kt->runningConsumers, runningConsumerInstance) {
+
+			// get kafka to invoke our callback function for this
+			//
 			if (krc->kq == NULL) {
-				count += rd_kafka_consume_callback (krc->kt->rkt, krc->partition, 0, kafkatcl_consume_callback, kt);
+				result = rd_kafka_consume_callback (krc->kt->rkt, krc->partition, 0, kafkatcl_consume_callback, krc);
 			} else {
-				count += rd_kafka_consume_callback_queue (krc->kq->rkqu, 0, kafkatcl_consume_callback_queue, krc->kq);
+				result = rd_kafka_consume_callback_queue (krc->kq->rkqu, 0, kafkatcl_consume_callback, krc);
+			}
+			if (result < 0) {
+				// NB do something here
+				// Tcl_BackgroundException (interp, TCL_ERROR);
+			} else {
+				count += result;
 			}
 		}
 	}
@@ -2199,7 +2179,6 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
         "consume_start",
         "consume_start_queue",
         "consume_stop",
-        "consume_callback",
         "delete",
         NULL
     };
@@ -2211,7 +2190,6 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 		OPT_CONSUME_START,
 		OPT_CONSUME_START_QUEUE,
 		OPT_CONSUME_STOP,
-		OPT_CONSUME_CALLBACK,
 		OPT_DELETE
     };
 
@@ -2256,48 +2234,17 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 
 			resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rdm);
 
+			if (resultCode == TCL_BREAK) {
+				Tcl_SetObjResult (interp, Tcl_NewIntObj (0));
+				return TCL_OK;
+			}
+
 			rd_kafka_message_destroy (rdm);
 
-			break;
-		}
-
-		case OPT_CONSUME_CALLBACK: {
-			int partition;
-			int timeoutMS;
-
-			if (objc != 5) {
-				Tcl_WrongNumArgs (interp, 2, objv, "partition timeout command");
-				return TCL_ERROR;
-			}
-
-			if (Tcl_GetIntFromObj (interp, objv[2], &partition) == TCL_ERROR) {
-				resultCode = TCL_ERROR;
-				break;
-			}
-
-			if (Tcl_GetIntFromObj (interp, objv[3], &timeoutMS) == TCL_ERROR) {
-				resultCode = TCL_ERROR;
-				break;
-			}
-
-			if (kt->consumeCallbackObj != NULL) {
-				Tcl_DecrRefCount (kt->consumeCallbackObj);
-			}
-
-			kt->consumeCallbackObj = objv[4];
-			Tcl_IncrRefCount (kt->consumeCallbackObj);
-
-			int count = rd_kafka_consume_callback (rkt, partition, timeoutMS, kafkatcl_consume_callback, kt);
-
-			if (count < 0) {
-				resultCode =  kafktcl_errno_to_tcl_error (interp);
-			} else {
-				Tcl_SetObjResult (interp, Tcl_NewIntObj (count));
-			}
+			Tcl_SetObjResult (interp, Tcl_NewIntObj (1));
 
 			break;
 		}
-
 
 		case OPT_CONSUME_BATCH: {
 			int partition;
@@ -2337,6 +2284,11 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			for (i = 0; i < gotCount; i++) {
 				resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rkMessages[i]);
 
+				if (resultCode == TCL_BREAK) {
+					resultCode = TCL_OK;
+					goto done;
+				}
+
 				if (resultCode == TCL_ERROR) {
 					break;
 				}
@@ -2347,17 +2299,13 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 					break;
 				}
 
-				if (resultCode == TCL_BREAK) {
-					resultCode = TCL_OK;
-					break;
-				}
-
 				rd_kafka_message_destroy (rkMessages[i]);
 			}
 
 			ckfree (rkMessages);
 
 			if (resultCode != TCL_ERROR) {
+			  done:
 				Tcl_SetObjResult (interp, Tcl_NewIntObj (gotCount));
 			}
 			break;
@@ -2688,7 +2636,6 @@ kafkatcl_createTopicObjectCommand (kafkatcl_handleClientData *kh, char *cmdName,
 	kt->kafka_topic_magic = KAFKA_TOPIC_MAGIC;
 	kt->rkt = rkt;
 	kt->kh = kh;
-	kt->consumeCallbackObj = NULL;
 	KT_LIST_INIT (&kt->runningConsumers);
 
 	if (kh->kafkaType == RD_KAFKA_CONSUMER) {
@@ -2743,7 +2690,6 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
     static CONST char *options[] = {
         "consume",
         "consume_batch",
-        "consume_callback",
         "delete",
         NULL
     };
@@ -2751,7 +2697,6 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
     enum options {
 		OPT_CONSUME_QUEUE,
 		OPT_CONSUME_QUEUE_BATCH,
-		OPT_CONSUME_QUEUE_CALLBACK,
 		OPT_DELETE
     };
 
@@ -2848,37 +2793,6 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 
 			if (resultCode != TCL_ERROR) {
 				Tcl_SetObjResult (interp, Tcl_NewIntObj (gotCount));
-			}
-
-			break;
-		}
-
-		case OPT_CONSUME_QUEUE_CALLBACK: {
-			int timeoutMS;
-
-			if (objc != 4) {
-				Tcl_WrongNumArgs (interp, 2, objv, "timeout command");
-				return TCL_ERROR;
-			}
-
-			if (Tcl_GetIntFromObj (interp, objv[2], &timeoutMS) == TCL_ERROR) {
-				resultCode = TCL_ERROR;
-				break;
-			}
-
-			if (kq->consumeCallbackObj != NULL) {
-				Tcl_DecrRefCount (kq->consumeCallbackObj);
-			}
-
-			kq->consumeCallbackObj = objv[3];
-			Tcl_IncrRefCount (kq->consumeCallbackObj);
-
-			int count = rd_kafka_consume_callback_queue (kq->rkqu, timeoutMS, kafkatcl_consume_callback_queue, kq);
-
-			if (count < 0) {
-				resultCode =  kafktcl_errno_to_tcl_error (interp);
-			} else {
-				Tcl_SetObjResult (interp, Tcl_NewIntObj (count));
 			}
 
 			break;
@@ -3046,7 +2960,6 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 			kq->interp = interp;
 			kq->rkqu = rd_kafka_queue_new  (rk);
 			kq->kh = kh;
-			kq->consumeCallbackObj = NULL;
 
 			KT_LIST_INSERT_HEAD (&kh->ko->queueConsumers, kq, queueConsumerInstance);
 
