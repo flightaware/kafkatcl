@@ -575,6 +575,8 @@ int kafkatcl_topic_conf_to_array (Tcl_Interp *interp, char *arrayName, rd_kafka_
  */
 Tcl_Obj *
 kafkatcl_stringpairs_to_tcl_list (const char **stringPairs, size_t count) {
+	Tcl_Obj *listObj;
+
 	Tcl_Obj **objv = (Tcl_Obj **)ckalloc (sizeof(Tcl_Obj *) * count);
 	int i;
 
@@ -582,7 +584,9 @@ kafkatcl_stringpairs_to_tcl_list (const char **stringPairs, size_t count) {
 		objv[i] = Tcl_NewStringObj (stringPairs[i], -1);
 	}
 
-	return Tcl_NewListObj (count, objv);
+	listObj = Tcl_NewListObj (count, objv);
+	ckfree ((char *)objv);
+	return listObj;
 }
 
 /*
@@ -1647,6 +1651,14 @@ kafkatcl_consume_callback_eventProc (Tcl_Event *tevPtr, int flags) {
 
 	if (listObj != NULL) {
 		kafkatcl_invoke_callback_with_argument (interp, krc->callbackObj, listObj);
+	}
+
+	// free the payload
+	ckfree (evPtr->rkmessage.payload);
+
+	// free the key if there is one
+	if (evPtr->rkmessage.key != NULL) {
+		ckfree (evPtr->rkmessage.key);
 	}
 
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
