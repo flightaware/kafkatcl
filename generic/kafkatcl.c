@@ -14,6 +14,9 @@ Tcl_Obj *kafkatcl_loggingCallbackObj = NULL;
 Tcl_ThreadId kafkatcl_loggingCallbackThreadId = NULL;
 Tcl_Interp *loggingInterp = NULL;
 
+int
+kafkatcl_check_consumer_callbacks (kafkatcl_objectClientData *ko);
+
 /*
  *--------------------------------------------------------------
  *
@@ -979,6 +982,7 @@ kafkatcl_EventCheckProc (ClientData clientData, int flags) {
 
 	// polling with timeoutMS of 0 is nonblocking, which is ideal
 	rd_kafka_poll (kh->rk, 0);
+	kafkatcl_check_consumer_callbacks (kh->ko);
 }
 
 /*
@@ -2019,6 +2023,154 @@ kafkatcl_handle_topic_info (Tcl_Interp *interp, kafkatcl_topicClientData *kt, in
 	return TCL_OK;
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_consume_start --
+ *
+ *    given a pointer to a topic client data, a partition, an offset,
+ *    and a possibly NULL callback routine, arrange to consume
+ *    from the topic and partition at the specified offset,
+ *    calling the callback routine if it is non-NULL
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_consume_start (kafkatcl_topicClientData *kt, int partition, int64_t offset, Tcl_Obj *callbackObj) {
+	Tcl_Interp *interp = kt->kh->interp;
+	rd_kafka_topic_t *rkt = kt->rkt;
+
+	if (rd_kafka_consume_start (rkt, partition, offset) < 0) {
+		return kafktcl_errno_to_tcl_error (interp);
+	}
+
+	if (callbackObj == NULL) {
+		return TCL_OK;
+	}
+
+	Tcl_IncrRefCount (callbackObj);
+
+	kafkatcl_runningConsumer *krc = ckalloc (sizeof (kafkatcl_runningConsumer));
+	krc->kt = kt;
+	krc->kq = NULL;
+	krc->partition = partition;
+	krc->callbackObj = callbackObj;
+
+	KT_LIST_INSERT_HEAD (&kt->runningConsumers, krc, runningConsumerInstance);
+
+	return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_consume_start_queue --
+ *
+ *    given a pointer to a topic client data, a partition, an offset,
+ *    a queue, and a possibly NULL callback routine, arrange to consume
+ *    from the topic and partition at the specified offset,
+ *    calling the callback routine if it is non-NULL
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_consume_start_queue (kafkatcl_topicClientData *kt, int partition, int64_t offset, kafkatcl_queueClientData *kq, Tcl_Obj *callbackObj) {
+	Tcl_Interp *interp = kt->kh->interp;
+	rd_kafka_topic_t *rkt = kt->rkt;
+
+	if (rd_kafka_consume_start_queue (rkt, partition, offset, kq->rkqu) < 0) {
+		return kafktcl_errno_to_tcl_error (interp);
+	}
+
+	if (callbackObj == NULL) {
+		return TCL_OK;
+	}
+
+	Tcl_IncrRefCount (callbackObj);
+
+	kafkatcl_runningConsumer *krc = ckalloc (sizeof (kafkatcl_runningConsumer));
+	krc->kt = kt;
+	krc->kq = kq;
+	krc->partition = partition;
+	krc->callbackObj = callbackObj;
+
+	KT_LIST_INSERT_HEAD (&kt->runningConsumers, krc, runningConsumerInstance);
+
+	return TCL_OK;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_consume_stop --
+ *
+ *    given a pointer to a topic client data and a partition, top
+ *    consuming.  delete from the running consumers table if it's
+ *    in there.
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_consume_stop (kafkatcl_topicClientData *kt, int partition) {
+	kafkatcl_runningConsumer *krc;
+	Tcl_Interp *interp = kt->kh->interp;
+
+	if (rd_kafka_consume_stop (kt->rkt, partition) < 0) {
+		return kafktcl_errno_to_tcl_error (interp);
+	}
+
+	KT_LIST_FOREACH(krc, &kt->runningConsumers, runningConsumerInstance) {
+		if (krc->partition == partition) {
+			KT_LIST_REMOVE (krc, runningConsumerInstance);
+			ckfree (krc);
+			break;
+		}
+	}
+
+	return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_check_consumer_callbacks --
+ *
+ *    run through all the running consumers that have callbacks defined
+ *    on partitions and topics and queues.
+ *
+ * Results:
+ *    the numbers of messages consumed
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_check_consumer_callbacks (kafkatcl_objectClientData *ko) {
+	kafkatcl_topicClientData *kt;
+	int count = 0;
+
+	KT_LIST_FOREACH(kt, &ko->topicConsumers, topicConsumerInstance) {
+		kafkatcl_runningConsumer *krc;
+
+		KT_LIST_FOREACH(krc, &kt->runningConsumers, runningConsumerInstance) {
+			if (krc->kq == NULL) {
+				count += rd_kafka_consume_callback (krc->kt->rkt, krc->partition, 0, kafkatcl_consume_callback, kt);
+			} else {
+				count += rd_kafka_consume_callback_queue (krc->kq->rkqu, 0, kafkatcl_consume_callback_queue, krc->kq);
+			}
+		}
+	}
+	return count;
+}
 
 /*
  *----------------------------------------------------------------------
@@ -2218,9 +2370,10 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 		case OPT_CONSUME_START: {
 			int64_t offset;
 			int partition;
+			Tcl_Obj *callbackObj = NULL;
 
-			if (objc != 4) {
-				Tcl_WrongNumArgs (interp, 2, objv, "partition offset");
+			if ((objc < 4) || (objc > 5)) {
+				Tcl_WrongNumArgs (interp, 2, objv, "partition offset ?callback?");
 				return TCL_ERROR;
 			}
 
@@ -2234,8 +2387,12 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 				break;
 			}
 
-			if (rd_kafka_consume_start (rkt, partition, offset) < 0) {
-				resultCode =  kafktcl_errno_to_tcl_error (interp);
+			if (objc == 5) {
+				callbackObj = objv[4];
+			}
+
+			if (kafkatcl_consume_start (kt, partition, offset, callbackObj) == TCL_ERROR) {
+				resultCode =  TCL_ERROR;
 				break;
 			}
 
@@ -2245,9 +2402,10 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 		case OPT_CONSUME_START_QUEUE: {
 			int64_t offset;
 			int partition;
+			Tcl_Obj *callbackObj = NULL;
 
-			if (objc != 5) {
-				Tcl_WrongNumArgs (interp, 2, objv, "partition offset queue");
+			if ((objc < 5) || (objc > 6)) {
+				Tcl_WrongNumArgs (interp, 2, objv, "partition offset queue ?callback?");
 				return TCL_ERROR;
 			}
 
@@ -2270,8 +2428,12 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 				break;
 			}
 
-			if (rd_kafka_consume_start_queue (rkt, partition, offset, qcd->rkqu) < 0) {
-				resultCode =  kafktcl_errno_to_tcl_error (interp);
+			if (objc == 6) {
+				callbackObj = objv[5];
+			}
+
+			if (kafkatcl_consume_start_queue (kt, partition, offset, qcd, callbackObj) == TCL_ERROR) {
+				resultCode =  TCL_ERROR;
 				break;
 			}
 
@@ -2291,11 +2453,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 				break;
 			}
 
-			if (rd_kafka_consume_stop (rkt, partition) < 0) {
-				resultCode =  kafktcl_errno_to_tcl_error (interp);
-				break;
-			}
-			break;
+			return kafkatcl_consume_stop (kt, partition);
 		}
 
 		case OPT_DELETE: {
@@ -2531,6 +2689,7 @@ kafkatcl_createTopicObjectCommand (kafkatcl_handleClientData *kh, char *cmdName,
 	kt->rkt = rkt;
 	kt->kh = kh;
 	kt->consumeCallbackObj = NULL;
+	KT_LIST_INIT (&kt->runningConsumers);
 
 	if (kh->kafkaType == RD_KAFKA_CONSUMER) {
 		KT_LIST_INSERT_HEAD (&kh->ko->topicConsumers, kt, topicConsumerInstance);

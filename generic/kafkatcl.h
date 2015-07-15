@@ -126,6 +126,7 @@ typedef struct kafkatcl_topicClientData
 	char *topic;
 	Tcl_Obj *consumeCallbackObj;
 	KT_LIST_ENTRY(kafkatcl_topicClientData) topicConsumerInstance;
+	KT_LIST_HEAD(runningConsumers, kafkatcl_runningConsumer) runningConsumers;
 } kafkatcl_topicClientData;
 
 typedef struct kafkatcl_queueClientData
@@ -187,5 +188,14 @@ typedef struct kafkatcl_consumeCallbackQueueEvent
 	kafkatcl_queueClientData *kq;
 	rd_kafka_message_t rkmessage;
 } kafkatcl_consumeCallbackQueueEvent;
+
+typedef struct kafkatcl_runningConsumer {
+	kafkatcl_topicClientData *kt;
+	kafkatcl_queueClientData *kq;
+	int partition;
+	Tcl_Obj *callbackObj;
+	KT_LIST_ENTRY(kafkatcl_runningConsumer) runningConsumerInstance;
+} kafkatcl_runningConsumer;
+
 
 /* vim: set ts=4 sw=4 sts=4 noet : */
