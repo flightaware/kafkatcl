@@ -286,9 +286,31 @@ Methods of kafka topic consumer object
 
  If callback is specified then the callback will be invoked with an argument containing a list of key-value pairs representing an error or a successfully received message.
 
-* *$topic* **consume_start_queue** *partition* *offset* *queue*
+ If a message is successfully produced the list will contain several key-value pairs:
+
+  * payload - the message previously queued to kafka
+
+  * partition - the partition number the payload was received from
+
+  * offset - the kafka offset (basically the kafka message ID) corresponding to this message
+
+  * topic - the name of the topic the message was received from, if known.
+
+  * key  - the partitioner key that was specified, if one was specified.
+
+ If an error is encountered the message will contain:
+
+  * error - the kafka error string returned by *rd_kafka_err2str*
+
+  * code - the kafka error code string, such as **RD_KAFKA_RESP_ERR_REQUEST_TIMED_OUT**.
+
+  * message - the error message from the server
+
+* *$topic* **consume_start_queue** *partition* *offset* *queue* *?callback?*
 
  Start consuming the established topic for the specified *partition*, starting at offset *offset*, re-routing incoming messages to the specified kafkatcl *queue* command object.
+
+ If *callback* is specified the behavior will be as with **consume_start** above.
 
  The queue should have been created with the *$handle* **create_queue** *command* method described elsewhere in this doc.
 
@@ -300,7 +322,19 @@ Methods of kafka topic consumer object
 
  Consume one message from the topic object for the specified partition received within *timeout* milliseconds into array *array*.  If there's an error, you get a Tcl error.
 
-Returns 1 on success and 0 if you reach the end of the partition.  You can read more subsequently.
+ Returns 1 on success and 0 if you reach the end of the partition.  You can read more subsequently.
+
+ On success array will be populated with the following fields:
+
+  * payload - the message previously queued to kafka
+
+  * partition - the partition number the payload was received from
+
+  * offset - the kafka offset (basically the kafka message ID) corresponding to this message
+
+  * topic - the name of the topic the message was received from
+
+  * key  - the partitioner key that was specified, if one was specified.
 
 * *$topic* **consume_batch** *partition* *timeout* *count* *array* *code*
 
