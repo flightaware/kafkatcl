@@ -829,9 +829,11 @@ kafkatcl_message_to_tcl_array (Tcl_Interp *interp, char *arrayName, rd_kafka_mes
 		return TCL_ERROR;
 	}
 
-	Tcl_Obj *keyObj = Tcl_NewByteArrayObj (rdm->key, rdm->key_len);
-	if (Tcl_SetVar2Ex (interp, arrayName, "key", keyObj, (TCL_LEAVE_ERR_MSG)) == NULL) {
-		return TCL_ERROR;
+	if (rdm->key != NULL) {
+		Tcl_Obj *keyObj = Tcl_NewByteArrayObj (rdm->key, rdm->key_len);
+		if (Tcl_SetVar2Ex (interp, arrayName, "key", keyObj, (TCL_LEAVE_ERR_MSG)) == NULL) {
+			return TCL_ERROR;
+		}
 	}
 
 	Tcl_Obj *offsetObj = Tcl_NewWideIntObj (rdm->offset);
