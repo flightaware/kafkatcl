@@ -135,6 +135,7 @@ typedef struct kafkatcl_queueClientData
 	rd_kafka_queue_t *rkqu;
 	kafkatcl_handleClientData *kh;
 	Tcl_Command cmdToken;
+	struct kafkatcl_runningConsumer *krc;
 	KT_LIST_ENTRY(kafkatcl_queueClientData) queueConsumerInstance;
 } kafkatcl_queueClientData;
 
@@ -174,6 +175,7 @@ typedef struct kafkatcl_statsEvent
 } kafkatcl_statsEvent;
 
 typedef struct kafkatcl_runningConsumer {
+	kafkatcl_handleClientData *kh;
 	kafkatcl_topicClientData *kt;
 	kafkatcl_queueClientData *kq;
 	int partition;

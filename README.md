@@ -306,11 +306,11 @@ Methods of kafka topic consumer object
 
   * message - the error message from the server
 
-* *$topic* **consume_start_queue** *partition* *offset* *queue* *?callback?*
+* *$topic* **consume_start_queue** *partition* *offset* *queue*
 
  Start consuming the established topic for the specified *partition*, starting at offset *offset*, re-routing incoming messages to the specified kafkatcl *queue* command object.
 
- If *callback* is specified the behavior will be as with **consume_start** above.
+ Multiple topics and partitions can be routed to the same queue.
 
  The queue should have been created with the *$handle* **create_queue** *command* method described elsewhere in this doc.
 
@@ -380,6 +380,14 @@ Queue objects support the following methods:
 
  The method returns number of rows processed.
 
+* *$queue* **consume_callback** *?callback?*
+
+ If callback is specified, sets things so that the callback routine will be invoked for each message present in the queue.
+
+ If callback is an empty string then it turns off the callback function.
+
+ If no callback argument is specified, the current callback is returned; an empty string is returned if no callback is currently defined.
+
 *$queue* **delete**
 
  Delete the consumer queue object.
@@ -445,13 +453,11 @@ $consumer add_brokers 127.0.0.1
 
 set topic [$consumer new_topic #auto flightplans.production]
 
-$topic consume_start 0 beginning
-
 proc callback {list} {
 	puts $list
 }
 
-set rowsReceived [$topic consume_callback 0 5000 callback]
+$topic consume_start 0 beginning callback
 ```
 
 Setting up a consumer and consume to a queue with callbacks
@@ -471,17 +477,11 @@ set myQueue [$consumer create_queue #auto]
 
 set topic [$consumer new_topic #auto flightplans.production]
 
-$topic consume_start_queue 0 beginning $myQueue
-
 proc callback {list} {
 	puts $list
 }
 
-proc pass {} {
-	puts [$::myQueue consume_callback 5000 callback]
-}
-
-pass
+$topic consume_start_queue 0 beginning $myQueue
 
 ```
 
