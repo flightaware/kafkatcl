@@ -1643,7 +1643,7 @@ kafkatcl_consume_callback_eventProc (Tcl_Event *tevPtr, int flags) {
 
 	kafkatcl_consumeCallbackEvent *evPtr = (kafkatcl_consumeCallbackEvent *)tevPtr;
 	kafkatcl_runningConsumer *krc = evPtr->krc;
-	Tcl_Interp *interp = krc->kt->kh->interp;
+	Tcl_Interp *interp = krc->kh->interp;
 
 	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage);
 
@@ -1691,7 +1691,7 @@ kafkatcl_consume_callback_queue_eventProc (Tcl_Event *tevPtr, int flags) {
 
 	kafkatcl_consumeCallbackEvent *evPtr = (kafkatcl_consumeCallbackEvent *)tevPtr;
 	kafkatcl_runningConsumer *krc = evPtr->krc;
-	Tcl_Interp *interp = krc->kq->kh->interp;
+	Tcl_Interp *interp = krc->kh->interp;
 
 	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage);
 
