@@ -3132,27 +3132,6 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 		case OPT_META: {
 			int suboptIndex;
 
-			if (objc != 2) {
-				Tcl_WrongNumArgs (interp, 2, objv, "");
-				return TCL_ERROR;
-			}
-
-			if (kafkatcl_refresh_metadata (kh) == TCL_ERROR) {
-				return TCL_ERROR;
-			}
-
-			const struct rd_kafka_metadata *metadata;
-
-			rd_kafka_resp_err_t err = rd_kafka_metadata (rk, 0, NULL, &metadata, 5000);
-
-			if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
-				return kafkatcl_kafka_error_to_tcl (interp, err, "failed to acquire metadata");
-			}
-
-
-			rd_kafka_metadata_destroy (metadata);
-			break;
-
 			if (objc != 3) {
 				Tcl_WrongNumArgs (interp, 2, objv, "refresh|print");
 				return TCL_ERROR;
@@ -3190,7 +3169,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 						}
 					}
 
-					metadata_print (NULL, metadata);
+					metadata_print (NULL, kh->metadata);
 					break;
 				}
 			}
