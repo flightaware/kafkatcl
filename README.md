@@ -128,6 +128,8 @@ Methods of kafka interface object
 
  Data returned currently is the payload, partition and offset.
 
+ Note that delivery report callbacks will only be performed for producer topics that are created after the master object has delivery reports configured.  If a topic is created and subsequently delivery report callbacks are set in the master object, the previously created topic will not receive delivery callbacks when payloads are produced to kafka.  This is also true for error and statistics callbacks.
+
 * *$kafka* **delivery_report** **every** *count*
 
  Only perform the delivery report callback event in Tcl every *count* delivery reports received, default 1 for every report received to call back to Tcl.  If set to 100, for instance, the first and every hundredth delivery report callback received would invoke the callback routine.
@@ -510,6 +512,10 @@ KafkaTcl The Easy Way
 
 Kafkatcl has the ability to have multiple master objects and multiple topic-consumer-generating and topic-producer-generating commands.  It's all very thorough.  But unless you're planning to talk to multiple kafka clusters from one process you may be happier with the easy interface provided by the kafkatcl library.
 
+* ::kafka::setup
+
+ Setup easy kafka by creating a kafka master object named kafka::master.  Can safely be called multiple times.  setup is invoked implicitly by other functions but may need to be invoked explicitly if you want to setup callbacks and whatnot before defining a producer.
+
 * **kafka::brokers** *brokerList*
 
  Assign a list of brokers.  Default is 127.0.0.1.
@@ -529,6 +535,8 @@ Kafkatcl has the ability to have multiple master objects and multiple topic-cons
 * **kafka::setup_producer**
 
  You don't need this unless you want to configure the producer object before creating a topic producer.  Likewise for setup_consumer.
+
+ Once setup_producer has been invoked to create a producer-generating object called kafka::producer, changes to the master object like defining callbacks will not be inherited by the producer or consumer creator.
 
 
 Misc Stuff
