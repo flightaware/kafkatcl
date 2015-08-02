@@ -2014,7 +2014,11 @@ kafkatcl_handle_topic_info (Tcl_Interp *interp, kafkatcl_topicClientData *kt, in
 
 			key = Tcl_GetStringFromObj (objv[3], &keyLen);
 
-			whichPartition = rd_kafka_msg_partitioner_consistent (kt->rkt, key, keyLen, t->partition_cnt, NULL, NULL);
+			if (t->partition_cnt == 0) {
+				whichPartition = -1;
+			} else {
+				whichPartition = rd_kafka_msg_partitioner_consistent (kt->rkt, key, keyLen, t->partition_cnt, NULL, NULL);
+			}
 
 			Tcl_SetObjResult (interp, Tcl_NewIntObj (whichPartition));
 			break;
