@@ -1572,7 +1572,7 @@ kafkatcl_refresh_metadata (kafkatcl_handleClientData *kh) {
 		rd_kafka_metadata_destroy (kh->metadata);
 	}
 
-	rd_kafka_resp_err_t err = rd_kafka_metadata (rk, 0, NULL, &kh->metadata, 5000);
+	rd_kafka_resp_err_t err = rd_kafka_metadata (rk, 1, NULL, &kh->metadata, 5000);
 
 	if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
 		return kafkatcl_kafka_error_to_tcl (interp, err, "failed to acquire metadata");
