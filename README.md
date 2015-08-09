@@ -543,6 +543,29 @@ Kafkatcl has the ability to have multiple master objects and multiple topic-cons
  Once setup_producer has been invoked to create a producer-generating object called kafka::producer, changes to the master object like defining callbacks will not be inherited by the producer or consumer creator.
 
 
+Demos
+---
+
+* [basic-reader.tcl](https://github.com/flightaware/kafkatcl/blob/master/demos/basic-reader.tcl) - the simplest reader, reads with a "while" loop, no callback.
+
+* [basic-batch-reader.tcl](https://github.com/flightaware/kafkatcl/blob/master/demos/basic-batch-reader.tcl) - building on the basic reader, this demo uses **consume_batch** to consume batches of messages from kafka.
+
+* [basic-reader-batch-queue.tcl](https://github.com/flightaware/kafkatcl/blob/master/demos/basic-reader-batch-queue.tcl) - building on the basic batch reader, this creates a queue and arranges to consume from a topic into a queue.  It then uses the **consume_batch** method of kafkatcl queues to process the messages as above.
+
+* [reader-callback.tcl](https://github.com/flightaware/kafkatcl/blob/master/demos/reader-callback.tcl) - consume from a kafka topic by getting callbacks, keeping the Tcl event loop alive
+
+* [reader-queue-callback.tcl](https://github.com/flightaware/kafkatcl/blob/master/demos/reader-queue-callback.tcl) - consume from a topic into a queue and get callbacks when there are messages in the queue.
+
+* [reader-queue-callback-multipart.tcl](https://github.com/flightaware/kafkatcl/blob/master/demos/reader-queue-callback-multipart.tcl) - consume from may partitions into a single queue and get callbacks on the queue
+
+* [producer.tcl](https://github.com/flightaware/kafkatcl/blob/master/demos/producer.tcl) - produce rows read from stdin to a topic
+
+* [producer-dr-callback.tcl](https://github.com/flightaware/kafkatcl/blob/master/demos/producer-dr-callback.tcl) - produce rows read from stdin to a topic and get delivery report callbacks
+
+* [index-writer-oo.tcl](https://github.com/flightaware/kafkatcl/blob/master/demos/index-writer-oo.tcl) - itcl class to write to a topic and periodically write information to a corresponding index topic
+
+* [meta.tcl](https://github.com/flightaware/kafkatcl/blob/master/demos/meta.tcl) - display some of the metadata
+
 Misc Stuff
 ---
 
@@ -556,3 +579,4 @@ Sample output of **kafka_master topic_config**:
 ```
 request.required.acks 1 enforce.isr.cnt 0 request.timeout.ms 5000 message.timeout.ms 300000 produce.offset.report false opaque 0x801ec6910 auto.commit.enable true auto.commit.interval.ms 60000 auto.offset.reset largest offset.store.path . offset.store.sync.interval.ms -1 offset.store.method file consume.callback.max.messages 0
 ```
+
