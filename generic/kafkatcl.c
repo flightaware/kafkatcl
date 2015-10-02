@@ -3553,7 +3553,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 				Tcl_DecrRefCount (ko->errorCallbackObj);
 			}
 
-			ko->errorCallbackObj = objv[3];
+			ko->errorCallbackObj = objv[2];
 			Tcl_IncrRefCount (ko->errorCallbackObj);
 
 			rd_kafka_conf_set_error_cb (ko->conf, kafkatcl_error_callback);
@@ -3570,7 +3570,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 				Tcl_DecrRefCount (ko->statisticsCallbackObj);
 			}
 
-			ko->statisticsCallbackObj = objv[3];
+			ko->statisticsCallbackObj = objv[2];
 			Tcl_IncrRefCount (ko->statisticsCallbackObj);
 
 			rd_kafka_conf_set_stats_cb (ko->conf, kafkatcl_stats_callback);
