@@ -2962,13 +2962,48 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
  *----------------------------------------------------------------------
  */
 int
-kafkatcl_add_brokers (kafkatcl_handleClientData *kh, char *brokers) {
+kafkatcl_add_brokers (kafkatcl_handleClientData *kh, Tcl_Obj *brokers) {
 	Tcl_Interp *interp = kh->interp;
+	int brokersObjc;
+	Tcl_Obj **brokersObjv;
+	int i;
+	Tcl_DString ds;
+	char *brokerString;
 
-	if (rd_kafka_brokers_add (kh->rk, brokers) == 0) {
+	if (Tcl_ListObjGetElements (interp, brokers, &brokersObjc, &brokersObjv) == TCL_ERROR) {
+		Tcl_AppendResult (interp, " while converting broker list", NULL);
+		return TCL_ERROR;
+	}
+
+	if (brokersObjc < 1) {
+		Tcl_SetObjResult (interp, Tcl_NewStringObj ("Broker list must contain at least one element", -1));
+		return TCL_ERROR;
+	}
+
+	/* convert list to comma-separated */
+	Tcl_DStringInit (&ds);
+
+	for (i = 0; i < brokersObjc; i++) {
+		char *broker;
+		int brokerLen;
+
+		broker = Tcl_GetStringFromObj (brokersObjv[i], &brokerLen);
+		Tcl_DStringAppend (&ds, broker, brokerLen);
+
+		if (i < brokersObjc - 1) {
+			Tcl_DStringAppend (&ds, ",", 1);
+		}
+	}
+
+	brokerString = Tcl_DStringValue (&ds);
+
+	if (rd_kafka_brokers_add (kh->rk, brokerString) == 0) {
+		Tcl_DStringFree (&ds);
 		Tcl_SetObjResult (interp, Tcl_NewStringObj ("No valid brokers specified", -1));
 		return TCL_ERROR;
 	}
+
+	Tcl_DStringFree (&ds);
 	return TCL_OK;
 }
 
@@ -3077,8 +3112,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 				return TCL_ERROR;
 			}
 
-			char *brokers = Tcl_GetString (objv[2]);
-			resultCode = kafkatcl_add_brokers (kh, brokers);
+			resultCode = kafkatcl_add_brokers (kh, objv[2]);
 			break;
 		}
 
