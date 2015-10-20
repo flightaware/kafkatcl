@@ -3164,7 +3164,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 			}
 
 			Tcl_SetObjResult (interp, Tcl_NewIntObj (rd_kafka_outq_len (rk)));
-
+			break;
 		}
 
 		case OPT_META: {
