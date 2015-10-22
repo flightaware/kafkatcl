@@ -103,8 +103,6 @@ proc setup_producer {args} {
 	master producer_creator ::kafka::producer
 	producer add_brokers $brokers
 
-	producer config compression.codec gzip
-
 	set producerIsSetup 1
 
 	logger "created producer-creator with brokers $brokers"
