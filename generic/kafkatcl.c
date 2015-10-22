@@ -1876,7 +1876,7 @@ kafkatcl_handle_topic_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf
 			break;
 		}
 	}
-	return TCL_OK;
+	return resultCode;
 }
 
 /*
