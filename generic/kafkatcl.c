@@ -1187,12 +1187,12 @@ void kafkatcl_logging_callback (const rd_kafka_t *rk, int level, const char *fac
 
 	evPtr->level = level;
 
-	int len = strlen (fac);
-	evPtr->fac = ckalloc (len + 1);
+	int len = strlen (fac) + 1;
+	evPtr->fac = ckalloc (len);
 	strncpy (evPtr->fac, fac, len);
 
-	len = strlen (buf);
-	evPtr->buf = ckalloc (len + 1);
+	len = strlen (buf) + 1;
+	evPtr->buf = ckalloc (len);
 	strncpy (evPtr->buf, buf, len);
 
 	Tcl_ThreadQueueEvent(kafkatcl_loggingCallbackThreadId, (Tcl_Event *)evPtr, TCL_QUEUE_TAIL);
