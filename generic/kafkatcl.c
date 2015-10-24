@@ -768,7 +768,7 @@ kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 		int i = 0;
 
 		listObjv[i++] = Tcl_NewStringObj ("payload", -1);
-		listObjv[i++] = Tcl_NewStringObj (rdm->payload, rdm->len);
+		listObjv[i++] = Tcl_NewByteArrayObj (rdm->payload, rdm->len);
 
 		listObjv[i++] = Tcl_NewStringObj ("partition", -1);
 		listObjv[i++] = Tcl_NewIntObj (rdm->partition);
