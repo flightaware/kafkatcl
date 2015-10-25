@@ -828,6 +828,7 @@ kafkatcl_message_to_tcl_array (Tcl_Interp *interp, char *arrayName, rd_kafka_mes
 		kafkatcl_unset_response_elements (interp, arrayName);
 
 		if (rdm->err == RD_KAFKA_RESP_ERR__PARTITION_EOF) {
+			// return TCL_BREAK on EOF to distinguish from TCL_OK or TCL_ERROR
 			return TCL_BREAK;
 		}
 
@@ -2355,15 +2356,15 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 
 			resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rdm);
 
+			// TCL_BREAK is returned on EOF
 			if (resultCode == TCL_BREAK) {
 				Tcl_SetObjResult (interp, Tcl_NewIntObj (0));
-				return TCL_OK;
+				resultCode = TCL_OK;
+			} else if (resultCode == TCL_OK) {
+				Tcl_SetObjResult (interp, Tcl_NewIntObj (1));
 			}
 
 			rd_kafka_message_destroy (rdm);
-
-			Tcl_SetObjResult (interp, Tcl_NewIntObj (1));
-
 			break;
 		}
 
@@ -2401,23 +2402,24 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			int gotCount = rd_kafka_consume_batch (rkt, partition, timeoutMS, rkMessages, count);
 
 			int i;
+			int skip = 0;
 
 			for (i = 0; i < gotCount; i++) {
-				resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rkMessages[i]);
+				if (!skip) {
+					resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rkMessages[i]);
 
-				if (resultCode == TCL_BREAK) {
-					resultCode = TCL_OK;
-					goto done;
-				}
+					if (resultCode == TCL_BREAK) {
+						resultCode = TCL_OK;
+						skip = 1;
+					} else if (resultCode == TCL_ERROR) {
+						skip = 1;
+					}
 
-				if (resultCode == TCL_ERROR) {
-					break;
-				}
+					resultCode = Tcl_EvalObjEx (interp, codeObj,  0);
 
-				resultCode = Tcl_EvalObjEx (interp, codeObj,  0);
-
-				if (resultCode == TCL_ERROR) {
-					break;
+					if (resultCode == TCL_ERROR) {
+						skip = 1;
+					}
 				}
 
 				rd_kafka_message_destroy (rkMessages[i]);
@@ -2426,7 +2428,6 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			ckfree (rkMessages);
 
 			if (resultCode != TCL_ERROR) {
-			  done:
 				Tcl_SetObjResult (interp, Tcl_NewIntObj (gotCount));
 			}
 			break;
