@@ -2221,7 +2221,6 @@ kafkatcl_consume_stop_all_partitions (kafkatcl_topicClientData *kt) {
 	// for each running consumer (perhaps multiple partitions)
 	KT_LIST_FOREACH_SAFE (krc, &kt->runningConsumers, runningConsumerInstance, tmp) {
 		kafkatcl_consume_stop (kt, krc->partition);
-		KT_LIST_REMOVE (krc, runningConsumerInstance);
 		ckfree (krc);
 	}
 }
