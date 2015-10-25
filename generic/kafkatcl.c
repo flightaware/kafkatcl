@@ -79,6 +79,9 @@ kafkatcl_topicObjectDelete (ClientData clientData)
 	// free the topic name
 	ckfree (kt->topic);
 
+	// clear the topic magic number
+	kt->kafka_topic_magic = 0;
+
 	// remove the topic instance from the list of topic consumers
 	KT_LIST_REMOVE (kt, topicConsumerInstance);
 
@@ -116,6 +119,10 @@ kafkatcl_handleObjectDelete (ClientData clientData)
 		rd_kafka_metadata_destroy (kh->metadata);
 	}
 
+	// clear the kafka handle magic number; this will help us catch
+	// attempted reuse of the structure after freeing
+    kh->kafka_handle_magic = 0;
+
 	rd_kafka_topic_conf_destroy (kh->topicConf);
 
     ckfree((char *)clientData);
@@ -148,6 +155,10 @@ kafkatcl_queueObjectDelete (ClientData clientData)
 	if (kq->krc != NULL) {
 		ckfree (kq->krc);
 	}
+
+	// clear the kafka queue magic number; this will help us catch
+	// attempted reuse of the structure after freeing
+    kq->kafka_queue_magic = 0;
 
 	KT_LIST_REMOVE (kq, queueConsumerInstance);
 
@@ -1659,6 +1670,9 @@ kafkatcl_consume_callback_eventProc (Tcl_Event *tevPtr, int flags) {
 
 	kafkatcl_consumeCallbackEvent *evPtr = (kafkatcl_consumeCallbackEvent *)tevPtr;
 	kafkatcl_runningConsumer *krc = evPtr->krc;
+
+    assert (krc->kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
+
 	Tcl_Interp *interp = krc->kh->interp;
 
 	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage);
@@ -1708,6 +1722,9 @@ kafkatcl_consume_callback_queue_eventProc (Tcl_Event *tevPtr, int flags) {
 
 	kafkatcl_consumeCallbackEvent *evPtr = (kafkatcl_consumeCallbackEvent *)tevPtr;
 	kafkatcl_runningConsumer *krc = evPtr->krc;
+
+    assert (krc->kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
+
 	Tcl_Interp *interp = krc->kh->interp;
 
 	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage);
