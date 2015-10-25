@@ -2140,6 +2140,35 @@ kafkatcl_set_queue_consumer (kafkatcl_queueClientData *kq, Tcl_Obj *callbackObj)
 /*
  *----------------------------------------------------------------------
  *
+ * kafkatcl_match_consumer_event --
+ *
+ *    return true if the passed-in event is an instance
+ *    of the passed-in client data.
+ *
+ *    this is used as an argument to Tcl_DeleteEvents in order for
+ *    kafkatcl_consume_stop to delete pending events for this topic
+ *    but leave other events alone.
+ *
+ * Results:
+ *    a standard tcl result
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_match_consumer_event(Tcl_Event *tevPtr, ClientData clientData) {
+    if (tevPtr->proc != kafkatcl_consume_callback_eventProc &&
+        tevPtr->proc != kafkatcl_consume_callback_queue_eventProc)
+        return 0;
+
+    kafkatcl_consumeCallbackEvent *evPtr = (kafkatcl_consumeCallbackEvent *)tevPtr;
+    kafkatcl_runningConsumer *krc = evPtr->krc;
+
+    return (krc == (kafkatcl_runningConsumer *)clientData);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
  * kafkatcl_consume_start_queue --
  *
  *    given a pointer to a topic client data, a partition, an offset,
@@ -2191,6 +2220,7 @@ kafkatcl_consume_stop (kafkatcl_topicClientData *kt, int partition) {
 	KT_LIST_FOREACH(krc, &kt->runningConsumers, runningConsumerInstance) {
 		if (krc->partition == partition) {
 			KT_LIST_REMOVE (krc, runningConsumerInstance);
+			Tcl_DeleteEvents(kafkatcl_match_consumer_event, (ClientData)krc);
 			ckfree (krc);
 			break;
 		}
@@ -2221,7 +2251,6 @@ kafkatcl_consume_stop_all_partitions (kafkatcl_topicClientData *kt) {
 	// for each running consumer (perhaps multiple partitions)
 	KT_LIST_FOREACH_SAFE (krc, &kt->runningConsumers, runningConsumerInstance, tmp) {
 		kafkatcl_consume_stop (kt, krc->partition);
-		ckfree (krc);
 	}
 }
 
