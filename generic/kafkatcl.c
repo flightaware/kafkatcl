@@ -2447,26 +2447,28 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			int gotCount = rd_kafka_consume_batch (rkt, partition, timeoutMS, rkMessages, count);
 
 			int i;
-			int skip = 0;
-
 			for (i = 0; i < gotCount; i++) {
-				if (!skip) {
-					resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rkMessages[i]);
+				resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rkMessages[i]);
 
-					if (resultCode == TCL_BREAK) {
-						resultCode = TCL_OK;
-						skip = 1;
-					} else if (resultCode == TCL_ERROR) {
-						skip = 1;
-					}
-
-					resultCode = Tcl_EvalObjEx (interp, codeObj,  0);
-
-					if (resultCode == TCL_ERROR) {
-						skip = 1;
-					}
+				if (resultCode == TCL_BREAK) {
+					resultCode = TCL_OK;
+					rd_kafka_message_destroy (rkMessages[i]);
+					continue;
+				} else if (resultCode == TCL_ERROR) {
+					break;
 				}
 
+				resultCode = Tcl_EvalObjEx (interp, codeObj,  0);
+
+				if (resultCode == TCL_ERROR) {
+					break;
+				}
+
+				rd_kafka_message_destroy (rkMessages[i]);
+			}
+
+			/* Free trailing unprocessed messages */
+			for (; i < gotCount; ++i) {
 				rd_kafka_message_destroy (rkMessages[i]);
 			}
 
@@ -2932,12 +2934,14 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			int gotCount = rd_kafka_consume_batch_queue (rkqu, timeoutMS, rkMessages, count);
 
 			int i;
-
 			for (i = 0; i < gotCount; i++) {
 				resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rkMessages[i]);
-				rd_kafka_message_destroy (rkMessages[i]);
 
-				if (resultCode == TCL_ERROR) {
+				if (resultCode == TCL_BREAK) {
+					resultCode = TCL_OK;
+					rd_kafka_message_destroy (rkMessages[i]);
+					continue;
+				} else if (resultCode == TCL_ERROR) {
 					break;
 				}
 
@@ -2947,10 +2951,12 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 					break;
 				}
 
-				if (resultCode == TCL_BREAK) {
-					resultCode = TCL_OK;
-					break;
-				}
+				rd_kafka_message_destroy (rkMessages[i]);
+			}
+
+			/* Free trailing unprocessed messages */
+			for (; i < gotCount; ++i) {
+				rd_kafka_message_destroy (rkMessages[i]);
 			}
 
 			ckfree (rkMessages);
