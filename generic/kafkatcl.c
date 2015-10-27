@@ -1140,7 +1140,7 @@ int
 kafkatcl_error_eventProc (Tcl_Event *tevPtr, int flags) {
 
 	// we got called with a Tcl_Event pointer but really it's a pointer to
-	// our kafkatcl_statsEvent structure that has the Tcl_Event and
+	// our kafkatcl_errorEvent structure that has the Tcl_Event and
 	// some other stuff that we need.
 	// Go get that.
 
@@ -1160,6 +1160,7 @@ kafkatcl_error_eventProc (Tcl_Event *tevPtr, int flags) {
 	listObjv[2] = Tcl_NewStringObj ("reason", -1);
 	listObjv[3] = Tcl_NewStringObj (evPtr->reason, -1);
 
+	ckfree(evPtr->reason);
 
 	Tcl_Obj *listObj = Tcl_NewListObj (KAFKATCL_EVENT_CALLBACK_LISTCOUNT, listObjv);
 
@@ -1235,7 +1236,10 @@ void kafkatcl_error_callback (rd_kafka_t *rk, int err, const char *reason, void 
 	evPtr->event.proc = kafkatcl_error_eventProc;
 	evPtr->ko = ko;
 	evPtr->err = err;
-	evPtr->reason = reason;
+
+	int len = strlen (reason) + 1;
+	evPtr->reason = ckalloc (len);
+	strncpy (evPtr->reason, reason, len);
 
 	Tcl_ThreadQueueEvent (ko->threadId, (Tcl_Event *)evPtr, TCL_QUEUE_HEAD);
 }

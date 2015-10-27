@@ -151,7 +151,7 @@ typedef struct kafkatcl_errorEvent
     Tcl_Event event;
 	kafkatcl_objectClientData *ko;
 	int err;
-	const char *reason;
+	char *reason;
 } kafkatcl_errorEvent;
 
 
