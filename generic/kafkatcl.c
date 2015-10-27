@@ -1586,6 +1586,7 @@ kafkatcl_refresh_metadata (kafkatcl_handleClientData *kh) {
 	// destroy metadata if it exists
 	if (kh->metadata != NULL) {
 		rd_kafka_metadata_destroy (kh->metadata);
+		kh->metadata = NULL;
 	}
 
 	rd_kafka_resp_err_t err = rd_kafka_metadata (rk, 1, NULL, &kh->metadata, 5000);
@@ -1996,7 +1997,9 @@ kafkatcl_handle_topic_info (Tcl_Interp *interp, kafkatcl_topicClientData *kt, in
 	kafkatcl_handleClientData *kh = kt->kh;
 
 	if (kh->metadata == NULL) {
-		kafkatcl_refresh_metadata (kh);
+		if (kafkatcl_refresh_metadata (kh) == TCL_ERROR) {
+			return TCL_ERROR;
+		}
 	}
 
 	switch ((enum subOptions) suboptIndex) {
@@ -3298,7 +3301,9 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 			}
 
 			if (kh->metadata == NULL) {
-				kafkatcl_refresh_metadata (kh);
+				if (kafkatcl_refresh_metadata (kh) == TCL_ERROR) {
+					return TCL_ERROR;
+				}
 			}
 
 			switch ((enum subOptions) suboptIndex) {
