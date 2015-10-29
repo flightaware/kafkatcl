@@ -1693,13 +1693,8 @@ kafkatcl_consume_callback_eventProc (Tcl_Event *tevPtr, int flags) {
 		// danger: no longer safe to touch krc from here onwards, the callback may have freed it!
 	}
 
-	// free the payload
-	ckfree (evPtr->rkmessage.payload);
-
-	// free the key if there is one
-	if (evPtr->rkmessage.key != NULL) {
-		ckfree (evPtr->rkmessage.key);
-	}
+	// the payload and key were allocated directly into the event,
+	// so no need to separately free them
 
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
 	// it and don't want it removed from the queue
@@ -1745,12 +1740,8 @@ kafkatcl_consume_callback_queue_eventProc (Tcl_Event *tevPtr, int flags) {
 		// danger: no longer safe to touch krc from here onwards, the callback may have freed it!
 	}
 
-	ckfree (evPtr->rkmessage.payload);
-
-	// free the key if there is one
-	if (evPtr->rkmessage.key != NULL) {
-		ckfree (evPtr->rkmessage.key);
-	}
+	// the payload and key were allocated directly into the event,
+	// so no need to separately free them
 
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
 	// it and don't want it removed from the queue
@@ -1776,10 +1767,13 @@ kafkatcl_consume_callback_queue_eventProc (Tcl_Event *tevPtr, int flags) {
 void
 kafkatcl_consume_callback (rd_kafka_message_t *rkmessage, void *opaque) {
 	kafkatcl_runningConsumer *krc = opaque;
-
 	kafkatcl_consumeCallbackEvent *evPtr;
+	char *extraSpace;
 
-	evPtr = ckalloc (sizeof (kafkatcl_consumeCallbackEvent));
+	// Tcl_DeleteEvents() will free the whole event and not give us a chance to do our own
+	// frees, so allocate just a single block for everything we need
+	evPtr = ckalloc (sizeof (kafkatcl_consumeCallbackEvent) + rkmessage->len + rkmessage->key_len);
+	extraSpace = (char*) (evPtr + 1);
 
 	evPtr->krc = krc;
 
@@ -1792,13 +1786,13 @@ kafkatcl_consume_callback (rd_kafka_message_t *rkmessage, void *opaque) {
 	// structure copy
 	evPtr->rkmessage = *rkmessage;
 
-	// then allocate and copy the payload and possibly the key; we will free
-	// all this in the event handler
-	evPtr->rkmessage.payload = ckalloc (rkmessage->len);
+	// then copy the payload and possibly the key into the previously allocated block
+	evPtr->rkmessage.payload = extraSpace;
 	memcpy (evPtr->rkmessage.payload, rkmessage->payload, rkmessage->len);
+	extraSpace += rkmessage->len;
 
 	if (rkmessage->key != NULL) {
-		evPtr->rkmessage.key = ckalloc (rkmessage->key_len);
+		evPtr->rkmessage.key = extraSpace;
 		memcpy (evPtr->rkmessage.key, rkmessage->key, rkmessage->key_len);
 	}
 
