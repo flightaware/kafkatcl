@@ -1690,7 +1690,7 @@ kafkatcl_consume_callback_eventProc (Tcl_Event *tevPtr, int flags) {
 
 	if (listObj != NULL) {
 		kafkatcl_invoke_callback_with_argument (interp, krc->callbackObj, listObj);
-		krc->pendingCallbackCount--;
+		// danger: no longer safe to touch krc from here onwards, the callback may have freed it!
 	}
 
 	// free the payload
@@ -1742,7 +1742,7 @@ kafkatcl_consume_callback_queue_eventProc (Tcl_Event *tevPtr, int flags) {
 	if (listObj != NULL) {
 		// free the payload
 		kafkatcl_invoke_callback_with_argument (interp, krc->callbackObj, listObj);
-		krc->pendingCallbackCount--;
+		// danger: no longer safe to touch krc from here onwards, the callback may have freed it!
 	}
 
 	ckfree (evPtr->rkmessage.payload);
@@ -2096,7 +2096,6 @@ kafkatcl_consume_start (kafkatcl_topicClientData *kt, int partition, int64_t off
 	krc->kq = NULL;
 	krc->partition = partition;
 	krc->callbackObj = callbackObj;
-	krc->pendingCallbackCount = 0;
 
 	KT_LIST_INSERT_HEAD (&kt->runningConsumers, krc, runningConsumerInstance);
 
@@ -2138,7 +2137,6 @@ kafkatcl_set_queue_consumer (kafkatcl_queueClientData *kq, Tcl_Obj *callbackObj)
 	krc->kh = kq->kh;
 	krc->kt = NULL;
 	krc->partition = 0;
-	krc->pendingCallbackCount = 0;
 	krc->callbackObj = callbackObj;
 
 	kq->krc = krc;
@@ -2299,7 +2297,6 @@ kafkatcl_check_consumer_callbacks (kafkatcl_objectClientData *ko) {
 					// NB do something here
 					// Tcl_BackgroundException (interp, TCL_ERROR);
 				} else {
-					krc->pendingCallbackCount += result;
 					count += result;
 				}
 			}
@@ -2320,7 +2317,6 @@ kafkatcl_check_consumer_callbacks (kafkatcl_objectClientData *ko) {
 			// NB do something here
 			// Tcl_BackgroundException (interp, TCL_ERROR);
 		} else {
-			krc->pendingCallbackCount += result;
 			count += result;
 		}
 	}

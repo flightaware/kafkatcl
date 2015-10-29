@@ -181,7 +181,6 @@ typedef struct kafkatcl_runningConsumer {
 	kafkatcl_topicClientData *kt;
 	kafkatcl_queueClientData *kq;
 	int partition;
-	int pendingCallbackCount;
 	Tcl_Obj *callbackObj;
 	KT_LIST_ENTRY(kafkatcl_runningConsumer) runningConsumerInstance;
 } kafkatcl_runningConsumer;
