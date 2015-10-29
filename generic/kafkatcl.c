@@ -1,3 +1,5 @@
+/* -*- mode: c; tab-width: 4; indent-tabs-mode: t -*- */
+
 /*
  * kafkatcl - Tcl interface to Apache Kafka
  *
