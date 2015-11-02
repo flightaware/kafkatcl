@@ -1152,7 +1152,7 @@ kafkatcl_error_eventProc (Tcl_Event *tevPtr, int flags) {
 
 #define KAFKATCL_EVENT_CALLBACK_LISTCOUNT 4
 
-	Tcl_Obj *listObjv[KAFKATCL_LOG_CALLBACK_LISTCOUNT];
+	Tcl_Obj *listObjv[KAFKATCL_EVENT_CALLBACK_LISTCOUNT];
 
 	// construct a list of key-value pairs representing the log message
 
