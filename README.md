@@ -82,7 +82,7 @@ set consumer [$kafka consumer_creator #auto]
 ...or...
 
 ```tcl
-::kafka::kafka create kafka]
+::kafka::kafka create kafka
 
 kafka logger callback klog
 
