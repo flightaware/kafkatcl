@@ -1149,18 +1149,32 @@ kafkatcl_error_eventProc (Tcl_Event *tevPtr, int flags) {
 	kafkatcl_errorEvent *evPtr = (kafkatcl_errorEvent *)tevPtr;
 	kafkatcl_objectClientData *ko = evPtr->ko;
 	Tcl_Interp *interp = ko->interp;
+	const char *kafkaErrorString = rd_kafka_err2str (evPtr->err);
+	const char *kafkaErrorCodeString = kafkatcl_kafka_error_to_errorcode_string (evPtr->err);
 
-#define KAFKATCL_EVENT_CALLBACK_LISTCOUNT 4
+#define KAFKATCL_EVENT_CALLBACK_LISTCOUNT 10
 
 	Tcl_Obj *listObjv[KAFKATCL_EVENT_CALLBACK_LISTCOUNT];
 
 	// construct a list of key-value pairs representing the log message
 
+	// err/reason left here for backwards compatibility,
+	// they should eventually go away
 	listObjv[0] = Tcl_NewStringObj ("err", -1);
 	listObjv[1] = Tcl_NewIntObj (evPtr->err);
 
 	listObjv[2] = Tcl_NewStringObj ("reason", -1);
 	listObjv[3] = Tcl_NewStringObj (evPtr->reason, -1);
+
+	// named for consistency with message callbacks.
+	listObjv[4] = Tcl_NewStringObj ("error", -1);
+	listObjv[5] = Tcl_NewStringObj (kafkaErrorString, -1);
+
+	listObjv[6] = Tcl_NewStringObj ("code", -1);
+	listObjv[7] = Tcl_NewStringObj (kafkaErrorCodeString, -1);
+
+	listObjv[8] = Tcl_NewStringObj ("message", -1);
+	listObjv[9] = Tcl_NewStringObj (evPtr->reason, -1);
 
 	ckfree(evPtr->reason);
 
