@@ -27,7 +27,7 @@ myQueue consume_callback callback
 
 # start consuming from many partitions into myQueue
 for {set i 0} {$i < 8} {incr i} {
-	consumer consume_start_queue $i beginning myQueue
+	consumer start_queue $i beginning myQueue
 }
 
 vwait die

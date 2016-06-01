@@ -20,7 +20,7 @@ parray consumerConfig
 
 kafka_consumer new_topic consumer my.topic
 
-consumer consume_start_queue 0 beginning myQueue
+consumer start_queue 0 beginning myQueue
 
 proc callback {list} {
 	puts $list

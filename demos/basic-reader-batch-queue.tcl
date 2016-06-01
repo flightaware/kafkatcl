@@ -18,7 +18,7 @@ kafka_consumer create_queue myQueue
 # you can consume from multiple partitions into the same queue although
 # you can't control their ordering.  Also from multiple topics, etc.
 #
-consumer consume_start_queue 0 beginning myQueue
+consumer start_queue 0 beginning myQueue
 
 proc pass {} {
 	set count [myQueue consume_batch 2000 100 row {

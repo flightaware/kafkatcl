@@ -55,11 +55,112 @@ Kafka handle objects are used to create topic producers and consumers.
 
 Topic producer and consumer objects are used to produce and consume messages to kafka.
 
-Or you can you the simple interface.
+KafkaTcl The Easy Way
+---
+Kafkatcl has the ability to have multiple master objects and multiple topic-consumer-generating and topic-producer-generating commands.  It's a thorough implementation of the capbilities of the librdkafka library implemented made natural/native in Tcl.  But unless you're planning to talk to multiple kafka clusters from one process you may be happier with this easy interface provided by the kafkatcl library.
 
+Let's connect to our kafka cluster and produce a message to the *test.test* topic consisting of a payload of "test message"...
+
+```tcl
+package require kafka
+
+::kafka::brokers 10.211.55.7
+kafka::topic_producer foo test.test
+foo produce 0 "test message"
+```
+
+Pretty simple, huh?  The argument to *brokers* can be a list of IP addresses or hostnames of some of your kafka cluster nodes.  It defaults to *127.0.0.1*.
+
+Let's set up a simple consumer...
+
+```tcl
+kafka::topic_consumer bar test.test
+bar start
+bar consume 0 0 x
+parray x
+```
+
+
+
+```
+x(offset)    = 0
+x(partition) = 0
+x(payload)   = test message
+x(topic)     = test.test
+```
+
+
+* ::kafka::setup
+
+ This sets up easy kafka by creating a kafka master object named **kafka::master**.  Can safely be called multiple times.  setup is invoked implicitly by other functions but may need to be invoked explicitly if you want to setup callbacks and whatnot before defining a producer.
+
+* **kafka::brokers** *brokerList*
+
+ Assign a list of kafka brokers.  Default is 127.0.0.1.
+
+* **kafka::topic_consumer** *command* *topic*
+
+ Create a kafkatcl topic-consuming command named *command* attached to *topic*.
+
+* **kafka::topic_producer** *command* *topic*
+
+ Create a kafkatcl topic-producing command named *command* attached to *topic*.
+
+ It create on demand one master object, ::kafka::master, one producer object, ::kafka::producer, one consumer object, ::kafka::consumer.
+
+ You can configure them and do all the stuff with them.
+
+* **kafka::setup_producer**
+
+ You don't need this unless you want to configure the producer object before creating a topic producer.  Likewise for setup_consumer.
+
+ Once setup_producer has been invoked to create a producer-generating object called kafka::producer, changes to the master object like defining callbacks will not be inherited by the producer or consumer creator.
+
+Demos
+---
+
+The *demos* directory contains several demo programs showing various ways of using kafkatcl:
+
+* producer.tcl
+
+ Produce to a kafka topic and partition.
+
+* producer-dr-callback.tcl
+
+ Produces to a kafka topic and partition with a periodic delivery report callback.
+
+* basic-reader.tcl
+
+ Consume messages from a partition in a loop.
+
+* basic-batch-reader.tcl
+
+ Consume messages from a topic into a queue in a loop.
+
+* reader-callback.tcl
+
+ Consume from a partition of a topic using Tcl callbacks, keeping the Tcl event loop alive.
+
+* reader-queue-callback.tcl
+
+ Read from a topic into a queue with with callbacks.
+
+* reader-queue-callback-multipart.tcl
+
+ Consume from many partitions into a queue with callbacks
+
+* meta.tcl
+
+ Demonstrates accessing metadata about the cluster such as brokers, topics, and partitions within topics.
+
+* index-writer-oo.tcl
+
+ Itcl class to write a topic and write periodically to an index topic.
 
 KafkaTcl commands
 ---
+
+Here's an enumeration and explanation of all the KafkaTcl commands:
 
 The kafkatcl command from which all others are created is **::kafka::kafka**.
 
@@ -282,7 +383,7 @@ If zero partitions are defined, which can occur during topic creation, **info co
 Methods of kafka topic consumer object
 ---
 
-* *$topic* **consume_start** *partition* *offset* *?callback?*
+* *$topic* **start** *partition* *offset* *?callback?*
 
  Start consuming the established topic for the specified *partition* starting at offset *offset*.
 
@@ -310,7 +411,7 @@ Methods of kafka topic consumer object
 
   * message - the error message from the server
 
-* *$topic* **consume_start_queue** *partition* *offset* *queue*
+* *$topic* **start_queue** *partition* *offset* *queue*
 
  Start consuming the established topic for the specified *partition*, starting at offset *offset*, re-routing incoming messages to the specified kafkatcl *queue* command object.
 
@@ -318,7 +419,7 @@ Methods of kafka topic consumer object
 
  The queue should have been created with the *$handle* **create_queue** *command* method described elsewhere in this doc.
 
-* *$topic* **consume_stop** *partition*
+* *$topic* **stop** *partition*
 
  Stop consuming messages for the established topic and specified *partition*, purging all messages currently in the local queue.
 
@@ -510,37 +611,6 @@ kafka_producer new_topic producer test
 
 producer produce $partition $payload $key
 ```
-
-KafkaTcl The Easy Way
----
-
-Kafkatcl has the ability to have multiple master objects and multiple topic-consumer-generating and topic-producer-generating commands.  It's all very thorough.  But unless you're planning to talk to multiple kafka clusters from one process you may be happier with the easy interface provided by the kafkatcl library.
-
-* ::kafka::setup
-
- Setup easy kafka by creating a kafka master object named kafka::master.  Can safely be called multiple times.  setup is invoked implicitly by other functions but may need to be invoked explicitly if you want to setup callbacks and whatnot before defining a producer.
-
-* **kafka::brokers** *brokerList*
-
- Assign a list of brokers.  Default is 127.0.0.1.
-
-* **kafka::topic_consumer** *command* *topic*
-
- Create a kafkatcl topic-consuming command named *command* attached to *topic*.
-
-* **kafka::topic_producer** *command* *topic*
-
- Create a kafkatcl topic-producing command named *command* attached to *topic*.
-
- It create on demand one master object, ::kafka::master, one producer object, ::kafka::producer, one consumer object, ::kafka::consumer.
-
- You can configure them and do all the stuff with them.
-
-* **kafka::setup_producer**
-
- You don't need this unless you want to configure the producer object before creating a topic producer.  Likewise for setup_consumer.
-
- Once setup_producer has been invoked to create a producer-generating object called kafka::producer, changes to the master object like defining callbacks will not be inherited by the producer or consumer creator.
 
 
 Demos

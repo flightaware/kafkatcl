@@ -2356,9 +2356,9 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
         "consume",
         "consume_batch",
 		"info",
-        "consume_start",
-        "consume_start_queue",
-        "consume_stop",
+        "start",
+        "start_queue",
+        "stop",
         "delete",
         NULL
     };

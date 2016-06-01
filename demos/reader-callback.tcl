@@ -17,7 +17,7 @@ proc callback {list} {
 
 # consume partition 0 starting from the beginning, calling callback as
 # payloads become available
-consumer consume_start 0 beginning callback
+consumer start 0 beginning callback
 
 vwait die
 

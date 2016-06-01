@@ -11,7 +11,8 @@ kafka_consumer add_brokers 127.0.0.1
 
 kafka_consumer new_topic consumer my.topic
 
-consumer consume_start 0 -10
+# start consuming 10 messages from the end of the topic
+consumer start 0 -10
 
 proc pass {} {
 	while true {

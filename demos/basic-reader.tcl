@@ -11,10 +11,10 @@ set topic my.topic
 kafka_consumer new_topic consumer $topic
 
 # start reading partition 0 from its beginning
-#consumer consume_start 0 beginning
+#consumer start 0 beginning
 
 # start reading partition 0 a few positions from the end
-consumer consume_start 0 -10
+consumer start 0 -10
 
 #
 # consume continuously from partition 0 of my.topic 
