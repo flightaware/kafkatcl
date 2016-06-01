@@ -65,7 +65,7 @@ The kafkatcl command from which all others are created is **::kafka::kafka**.
 
 * **kafka::kafka** **version**
 
- Returns the kafka version as a string, like 0.8.6.
+ Returns the kafka version as a string, like 0.9.0.
 
 * **kafka::kafka** **create** *command*
 
