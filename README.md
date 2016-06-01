@@ -44,6 +44,12 @@ Accessing from Tcl
 package require kafka
 ```
 
+Versions
+---
+
+Use v1.5 for librdkafka 0.8 and lower; v2.0 or master for librdkafka 0.9.0 and higher or kafkatcl won't compile.
+
+
 Overview
 ---
 
