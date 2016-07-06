@@ -966,7 +966,7 @@ kafkatcl_invoke_callback_with_argument (Tcl_Interp *interp, Tcl_Obj *callbackObj
 	// a background error, which will generally cause the bgerror proc
 	// to get invoked
 	if (tclReturnCode == TCL_ERROR) {
-		Tcl_BackgroundException (interp, TCL_ERROR);
+		Tcl_BackgroundError (interp);
 	}
 
 	for (i = 0; i < evalObjc; i++) {
@@ -2303,7 +2303,7 @@ kafkatcl_check_consumer_callbacks (kafkatcl_objectClientData *ko) {
 				result = rd_kafka_consume_callback (krc->kt->rkt, krc->partition, 0, kafkatcl_consume_callback, krc);
 				if (result < 0) {
 					// NB do something here
-					// Tcl_BackgroundException (interp, TCL_ERROR);
+					// Tcl_BackgroundError (interp);
 				} else {
 					count += result;
 				}
@@ -2323,7 +2323,7 @@ kafkatcl_check_consumer_callbacks (kafkatcl_objectClientData *ko) {
 		result = rd_kafka_consume_callback_queue (kq->rkqu, 0, kafkatcl_consume_callback, krc);
 		if (result < 0) {
 			// NB do something here
-			// Tcl_BackgroundException (interp, TCL_ERROR);
+			// Tcl_BackgroundError (interp);
 		} else {
 			count += result;
 		}
