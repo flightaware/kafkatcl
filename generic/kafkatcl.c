@@ -2360,6 +2360,9 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
         "start_queue",
         "stop",
         "delete",
+	"consume_start",
+	"consume_start_queue",
+	"consume_stop",
         NULL
     };
 
@@ -2370,7 +2373,10 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 		OPT_CONSUME_START,
 		OPT_CONSUME_START_QUEUE,
 		OPT_CONSUME_STOP,
-		OPT_DELETE
+		OPT_DELETE,
+		OPT_LEGACY_CONSUME_START,
+		OPT_LEGACY_CONSUME_START_QUEUE,
+		OPT_LEGACY_CONSUME_STOP
     };
 
     /* basic validation of command line arguments */
@@ -2497,6 +2503,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			return kafkatcl_handle_topic_info (interp, kt, objc, objv);
 		}
 
+		case OPT_LEGACY_CONSUME_START:
 		case OPT_CONSUME_START: {
 			int64_t offset;
 			int partition;
@@ -2529,6 +2536,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			break;
 		}
 
+		case OPT_LEGACY_CONSUME_START_QUEUE:
 		case OPT_CONSUME_START_QUEUE: {
 			int64_t offset;
 			int partition;
@@ -2565,6 +2573,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			break;
 		}
 
+		case OPT_LEGACY_CONSUME_STOP:
 		case OPT_CONSUME_STOP: {
 			int partition;
 
