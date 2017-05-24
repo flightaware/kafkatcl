@@ -146,7 +146,7 @@ SHARED_BUILD	= @SHARED_BUILD@
 
 # NB fix the configure script o do this the right way
 KAFKAINCLUDES=-I"/usr/local/include"
-KAFKALIBS="-L/usr/local/lib" -lrdkafka
+KAFKALIBS="-L/usr/local/lib" -Wl,-Bstatic -lrdkafka -Wl,-Bdynamic -lpthread -lz -lrt
 
 INCLUDES	= @PKG_INCLUDES@ @TCL_INCLUDES@ $(KAFKAINCLUDES)
 #INCLUDES	= @PKG_INCLUDES@ @TCL_INCLUDES@ @TK_INCLUDES@ @TK_XINCLUDES@
