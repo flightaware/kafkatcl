@@ -811,6 +811,13 @@ kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 
 
 void
+kafkatcl_unset_error_elements (Tcl_Interp *interp, char *arrayName) {
+	Tcl_UnsetVar2 (interp, arrayName, "error", 0);
+	Tcl_UnsetVar2 (interp, arrayName, "response", 0);
+	Tcl_UnsetVar2 (interp, arrayName, "message", 0);
+}
+
+void
 kafkatcl_unset_response_elements (Tcl_Interp *interp, char *arrayName) {
 	Tcl_UnsetVar2 (interp, arrayName, "payload", 0);
 	Tcl_UnsetVar2 (interp, arrayName, "partition", 0);
@@ -823,8 +830,12 @@ kafkatcl_unset_response_elements (Tcl_Interp *interp, char *arrayName) {
  *--------------------------------------------------------------
  *
  *   kafkatcl_message_to_tcl_array -- given a Tcl interpreter, the name of
- *   an array and a kafka rd_kafka_message_t message, either generate
- *   a tcl error or set fields of the message into the specified array
+ *   an array and a kafka rd_kafka_message_t message, set fields of the
+ *   message into the specified array
+ *
+ *   In the case of a kafka error, then if failOnKafkaError is set it will
+ *   convert a Kafka error into a Tcl error. Otherwise it will return the Kafka
+ *   error in the array using the same convention as kafkatcl_message_to_tcl_array
  *
  * Results:
  *     a standard Tcl result
@@ -835,9 +846,8 @@ kafkatcl_unset_response_elements (Tcl_Interp *interp, char *arrayName) {
  *--------------------------------------------------------------
  */
 int
-kafkatcl_message_to_tcl_array (Tcl_Interp *interp, char *arrayName, rd_kafka_message_t *rdm) {
+kafkatcl_message_to_tcl_array (Tcl_Interp *interp, char *arrayName, rd_kafka_message_t *rdm, int failOnKafkaError) {
 	if (rdm->err != RD_KAFKA_RESP_ERR_NO_ERROR) {
-		// error message is in the payload
 		kafkatcl_unset_response_elements (interp, arrayName);
 
 		if (rdm->err == RD_KAFKA_RESP_ERR__PARTITION_EOF) {
@@ -845,35 +855,53 @@ kafkatcl_message_to_tcl_array (Tcl_Interp *interp, char *arrayName, rd_kafka_mes
 			return TCL_BREAK;
 		}
 
-		return kafkatcl_kafka_error_to_tcl (interp, rdm->err, (char *)rdm->payload);
-	}
+		// error message is in the payload
+		if (failOnKafkaError)
+			return kafkatcl_kafka_error_to_tcl (interp, rdm->err, (char *)rdm->payload);
 
-	Tcl_Obj *payloadObj = Tcl_NewByteArrayObj (rdm->payload, rdm->len);
-	if (Tcl_SetVar2Ex (interp, arrayName, "payload", payloadObj, (TCL_LEAVE_ERR_MSG)) == NULL) {
-		return TCL_ERROR;
-	}
-
-	Tcl_Obj *partitionObj = Tcl_NewIntObj (rdm->partition);
-	if (Tcl_SetVar2Ex (interp, arrayName, "partition", partitionObj, (TCL_LEAVE_ERR_MSG)) == NULL) {
-		return TCL_ERROR;
-	}
-
-	if (rdm->key != NULL) {
-		Tcl_Obj *keyObj = Tcl_NewByteArrayObj (rdm->key, rdm->key_len);
-		if (Tcl_SetVar2Ex (interp, arrayName, "key", keyObj, (TCL_LEAVE_ERR_MSG)) == NULL) {
+		Tcl_Obj *errorObj = Tcl_NewStringObj(rd_kafka_err2str (rdm->err), -1);
+		if (Tcl_SetVar2Ex (interp, arrayName, "error", errorObj, TCL_LEAVE_ERR_MSG) == NULL) {
 			return TCL_ERROR;
 		}
-	}
 
-	Tcl_Obj *offsetObj = Tcl_NewWideIntObj (rdm->offset);
-	if (Tcl_SetVar2Ex (interp, arrayName, "offset", offsetObj, (TCL_LEAVE_ERR_MSG)) == NULL) {
-		return TCL_ERROR;
-	}
+		Tcl_Obj *codeObj = Tcl_NewStringObj(kafkatcl_kafka_error_to_errorcode_string (rdm->err), -1);
+		if (Tcl_SetVar2Ex (interp, arrayName, "code", codeObj, TCL_LEAVE_ERR_MSG) == NULL) {
+			return TCL_ERROR;
+		}
 
+		Tcl_Obj *messageObj = Tcl_NewStringObj(rdm->payload, rdm->len);
+		if (Tcl_SetVar2Ex (interp, arrayName, "message", messageObj, TCL_LEAVE_ERR_MSG) == NULL) {
+			return TCL_ERROR;
+		}
+	} else {
+		kafkatcl_unset_error_elements (interp, arrayName);
 
-	Tcl_Obj *topicObj = Tcl_NewStringObj (rd_kafka_topic_name (rdm->rkt), -1);
-	if (Tcl_SetVar2Ex (interp, arrayName, "topic", topicObj, (TCL_LEAVE_ERR_MSG)) == NULL) {
-		return TCL_ERROR;
+		Tcl_Obj *payloadObj = Tcl_NewByteArrayObj (rdm->payload, rdm->len);
+		if (Tcl_SetVar2Ex (interp, arrayName, "payload", payloadObj, (TCL_LEAVE_ERR_MSG)) == NULL) {
+			return TCL_ERROR;
+		}
+
+		Tcl_Obj *partitionObj = Tcl_NewIntObj (rdm->partition);
+		if (Tcl_SetVar2Ex (interp, arrayName, "partition", partitionObj, (TCL_LEAVE_ERR_MSG)) == NULL) {
+			return TCL_ERROR;
+		}
+
+		if (rdm->key != NULL) {
+			Tcl_Obj *keyObj = Tcl_NewByteArrayObj (rdm->key, rdm->key_len);
+			if (Tcl_SetVar2Ex (interp, arrayName, "key", keyObj, (TCL_LEAVE_ERR_MSG)) == NULL) {
+				return TCL_ERROR;
+			}
+		}
+
+		Tcl_Obj *offsetObj = Tcl_NewWideIntObj (rdm->offset);
+		if (Tcl_SetVar2Ex (interp, arrayName, "offset", offsetObj, (TCL_LEAVE_ERR_MSG)) == NULL) {
+			return TCL_ERROR;
+		}
+
+		Tcl_Obj *topicObj = Tcl_NewStringObj (rd_kafka_topic_name (rdm->rkt), -1);
+		if (Tcl_SetVar2Ex (interp, arrayName, "topic", topicObj, (TCL_LEAVE_ERR_MSG)) == NULL) {
+			return TCL_ERROR;
+		}
 	}
 
 	return TCL_OK;
@@ -2418,7 +2446,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 				break;
 			}
 
-			resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rdm);
+			resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rdm, 1);
 
 			// TCL_BREAK is returned on EOF
 			if (resultCode == TCL_BREAK) {
@@ -2467,7 +2495,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 
 			int i;
 			for (i = 0; i < gotCount; i++) {
-				resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rkMessages[i]);
+				resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rkMessages[i], 0);
 
 				if (resultCode == TCL_BREAK) {
 					resultCode = TCL_OK;
@@ -2921,7 +2949,7 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 				break;
 			}
 
-			resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rdm);
+			resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rdm, 1);
 			rd_kafka_message_destroy (rdm);
 
 			break;
@@ -2957,7 +2985,7 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 
 			int i;
 			for (i = 0; i < gotCount; i++) {
-				resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rkMessages[i]);
+				resultCode = kafkatcl_message_to_tcl_array (interp, arrayName, rkMessages[i], 0);
 
 				if (resultCode == TCL_BREAK) {
 					resultCode = TCL_OK;
