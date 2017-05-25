@@ -813,7 +813,7 @@ kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 void
 kafkatcl_unset_error_elements (Tcl_Interp *interp, char *arrayName) {
 	Tcl_UnsetVar2 (interp, arrayName, "error", 0);
-	Tcl_UnsetVar2 (interp, arrayName, "response", 0);
+	Tcl_UnsetVar2 (interp, arrayName, "code", 0);
 	Tcl_UnsetVar2 (interp, arrayName, "message", 0);
 }
 
