@@ -453,6 +453,8 @@ Methods of kafka topic consumer object
 
  For each message received fill the array *array* with fields from the message containing the message *payload*, *partition*, *offset*, *topic* name and optional *key*, repeatedly executing *code* for each message received.
 
+ Kafka errors are returned as arrays containing the elements *error*, *code*, and *message*.
+
  This method returns number of rows processed, 0 if the end of the partition is reached.
 
 * *$topic* **info** **topic**
@@ -490,6 +492,8 @@ Queue objects support the following methods:
  As with consuming a batch from a topic, reads up to *count* messages or however many have come in less than that within *timeout* milliseconds.
 
  For each message received the array *array* is filled with fields from the message containing the message *payload*, *partition*, *offset*, *topic* name and optional *key*, repeatedly executing *code* for each message received.
+
+ Kafka errors are returned as arrays containing the elements *error*, *code*, and *message*.
 
  The method returns number of rows processed.
 
