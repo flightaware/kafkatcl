@@ -498,7 +498,7 @@ int kafkatcl_kafka_error_to_tcl (Tcl_Interp *interp, rd_kafka_resp_err_t kafkaEr
 	Tcl_AppendResult (interp, "kafka error: ", kafkaErrorString, NULL);
 
 	if (string != NULL && *string != '\0') {
-		Tcl_AppendResult (interp, " (", kafkaErrorString, ")", NULL);
+		Tcl_AppendResult (interp, " (", string, ")", NULL);
 	}
 	return TCL_ERROR;
 }
