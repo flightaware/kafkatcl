@@ -2387,6 +2387,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
         "start",
         "start_queue",
         "stop",
+        "store_offset",
         "delete",
 	"consume_start",
 	"consume_start_queue",
@@ -2401,6 +2402,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 		OPT_CONSUME_START,
 		OPT_CONSUME_START_QUEUE,
 		OPT_CONSUME_STOP,
+		OPT_STORE_OFFSET,
 		OPT_DELETE,
 		OPT_LEGACY_CONSUME_START,
 		OPT_LEGACY_CONSUME_START_QUEUE,
@@ -2616,6 +2618,34 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			}
 
 			return kafkatcl_consume_stop (kt, partition);
+		}
+
+		case OPT_STORE_OFFSET: {
+			int64_t offset;
+			int partition;
+			int err;
+
+			if (objc != 4) {
+				Tcl_WrongNumArgs (interp, 2, objv, "partition offset");
+				return TCL_ERROR;
+			}
+
+			if (Tcl_GetIntFromObj (interp, objv[2], &partition) == TCL_ERROR) {
+				resultCode = TCL_ERROR;
+				break;
+			}
+
+			if (kafkatcl_parse_offset (interp, objv[3], &offset) != TCL_OK) {
+				resultCode = TCL_ERROR;
+				break;
+			}
+
+			err = rd_kafka_offset_store (rkt, partition, offset);
+			if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+				return kafkatcl_kafka_error_to_tcl (interp, err, "failed to store offset");
+			}
+
+			break;
 		}
 
 		case OPT_DELETE: {
