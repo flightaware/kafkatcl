@@ -3460,12 +3460,40 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
     switch ((enum options) optIndex) {
 		case OPT_SUBSCRIBE: {
 			if (objc == 2) {
-				// call rd_kafka_subscription to return current subscription
-			} else {
-				// call rd_kafka_subscribe to add to subscription list
-			}
+				int topicIndex;
+				rd_kafka_topic_partition_list_t *topics = NULL;
+				Tcl_Obj *result = Tcl_NewObj();
+				rd_kafka_resp_err_t status = rd_kafka_subscription(rk, &topics);
 
-			Tcl_SetObjResult (interp, Tcl_NewStringObj (rd_kafka_name (rk), -1));
+				if(status != RD_KAFKA_RESP_ERR_NO_ERROR) {
+					Tcl_AppendResult(interp, rd_kafka_err2str(status), NULL);
+					return TCL_ERROR;
+				}
+
+				for(topicIndex = 0; topicIndex < topics->cnt; topicIndex++) {
+					Tcl_AppendStringToList(result, topics->elems[topicIndex]->topic);
+				}
+
+				rd_kafka_topic_partition_list_destroy(topics);
+
+				Tcl_SetObjResult(interp, result);
+			} else {
+				rd_kafka_topic_partition_list_t *topics = rd_kafka_topic_partition_list_new(0);
+				int topicIndex;
+
+				for(topicIndex = 2; topicIndex < objc; topicIndex++) {
+					rd_kafka_topic_partition_list_add(topics, Tcl_GetString(objv[topicIndex]), 0); // TODO be smarter about partition part
+				}
+
+				rd_kafka_resp_err_t status = rd_kafka_subscribe(rk, topics);
+
+				rd_kafka_topic_partition_list_destroy(topics);
+
+				if(status != RD_KAFKA_RESP_ERR_NO_ERROR) {
+					Tcl_AppendResult(interp, rd_kafka_err2str(status), NULL);
+					return TCL_ERROR;
+				}
+			}
 			break;
 		}
 
