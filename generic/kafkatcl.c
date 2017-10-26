@@ -3416,6 +3416,79 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 /*
  *----------------------------------------------------------------------
  *
+ * kafkatcl_subscriberObjectObjCmd --
+ *
+ *    dispatches the subcommands of a kafkatcl subscriber-handling command
+ *
+ * Results:
+ *    stuff
+ *
+ *----------------------------------------------------------------------
+ */
+int
+kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+{
+    int         optIndex;
+	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)cData;
+	rd_kafka_t *rk = kh->rk;
+	int resultCode = TCL_OK;
+
+    static CONST char *options[] = {
+        "subscribe", // topics (no topics returns current subscription)
+        "unsubscribe", // clear subscription list
+        "partitions", // partitions?
+        "delete",
+        NULL
+    };
+
+    enum options {
+        OPT_SUBSCRIBE,
+		OPT_PARTITIONS,
+		OPT_DELETE
+    };
+
+    /* basic validation of command line arguments */
+    if (objc < 2) {
+        Tcl_WrongNumArgs (interp, 1, objv, "subcommand ?args?");
+        return TCL_ERROR;
+    }
+
+    if (Tcl_GetIndexFromObj (interp, objv[1], options, "option", TCL_EXACT, &optIndex) != TCL_OK) {
+		return TCL_ERROR;
+    }
+
+    switch ((enum options) optIndex) {
+		case OPT_SUBSCRIBE: {
+			if (objc == 2) {
+				// call rd_kafka_subscription to return current subscription
+			} else {
+				// call rd_kafka_subscribe to add to subscription list
+			}
+
+			Tcl_SetObjResult (interp, Tcl_NewStringObj (rd_kafka_name (rk), -1));
+			break;
+		}
+
+		case OPT_DELETE: {
+			// call rd_kafka_consumer_close first
+			if (objc != 2) {
+				Tcl_WrongNumArgs (interp, 2, objv, "");
+				return TCL_ERROR;
+			}
+
+			if (Tcl_DeleteCommandFromToken (kh->interp, kh->cmdToken) == TCL_ERROR) {
+				resultCode = TCL_ERROR;
+			}
+			break;
+		}
+
+    }
+    return resultCode;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
  * kafkatcl_kafkatcl_generateHandleCommandName --
  *
  *    Generate a unique name for a Tcl command.
