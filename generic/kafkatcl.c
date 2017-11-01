@@ -3458,6 +3458,52 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
     return resultCode;
 }
 
+rd_kafka_topic_partition_list_t *kafkatcl_objv_to_topic_partition_list(Tcl_Obj **objv, int objc)
+{
+	rd_kafka_topic_partition_list_t *list = rd_kafka_topic_partition_list_new(0);
+	int i;
+	char *topic = NULL;
+	int topicSize = 0;
+
+	for(i = 0; i < objc; i++) {
+		int partition = 0, j;
+		char *topicPartition = Tcl_GetString(objv[i]);
+		int topicLen = strlen(topicPartition);
+
+		if(!topic || topicSize < topicLen+1) {
+			if(topic) ckfree(topic);
+			topic = ckalloc(topicSize = topicLen + 1);
+		}
+
+		for(j = 0; topicPartition[j] && topicPartition[j] != ':'; j++)
+			topic[j] = topicPartition[j];
+		topic[j] = '\0';
+
+		if(topicPartition[j++])
+			partition = atoi(&topicPartition[j]);
+
+		rd_kafka_topic_partition_list_add(list, topic, partition);
+
+	}
+	if(topic) ckfree(topic);
+
+	return list;
+}
+
+Tcl_Obj *kafkatcl_topic_partition_list_to_list(rd_kafka_topic_partition_list_t *topics)
+{
+	Tcl_Obj *result = Tcl_NewObj();
+	int i;
+
+	for(i = 0; topicIndex < topics->cnt; i++) {
+		Tcl_Obj topicPartition = Tcl_NewStringObj(topics->elems[i]->topic, -1);
+		Tcl_AppendPrintfToObj(topicPartition, ":%d", topics->elems[i]->partition);
+		Tcl_ListObjAppendElement(result, topicPartition);
+	}
+
+	return result;
+}
+
 /*
  *----------------------------------------------------------------------
  *
@@ -3482,6 +3528,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 		"subscribe", // topics (no topics returns current subscription)
 		"unsubscribe", // clear subscription list
 		"assignment", // current actual assignment
+		"commit",
 		"delete",
 		NULL
 	};
@@ -3490,6 +3537,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 		OPT_SUBSCRIBE,
 		OPT_UNSUBSCRIBE,
 		OPT_ASSIGNMENT,
+		OPT_COMMIT,
 		OPT_DELETE
 	};
 
@@ -3506,9 +3554,8 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 	switch ((enum options) optIndex) {
 		case OPT_SUBSCRIBE: {
 			if (objc == 2) {
-				int topicIndex;
 				rd_kafka_topic_partition_list_t *topics = NULL;
-				Tcl_Obj *result = Tcl_NewObj();
+				Tcl_Obj *result = NULL;
 				rd_kafka_resp_err_t status = rd_kafka_subscription(rk, &topics);
 
 				if(status != RD_KAFKA_RESP_ERR_NO_ERROR) {
@@ -3516,36 +3563,15 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 					return TCL_ERROR;
 				}
 
-				for(topicIndex = 0; topicIndex < topics->cnt; topicIndex++) {
-					Tcl_Obj topicPartition = Tcl_NewStringObj(topics->elems[topicIndex]->topic, -1);
-					Tcl_AppendPrintfToObj(topicPartition, ":%d", topics->elems[topicIndex]->partition);
-					Tcl_ListObjAppendElement(result, topicPartition);
-				}
+				result = kafkatcl_topic_partition_list_to_list(topics);
 
 				rd_kafka_topic_partition_list_destroy(topics);
 
 				Tcl_SetObjResult(interp, result);
 			} else {
-				rd_kafka_topic_partition_list_t *topics = rd_kafka_topic_partition_list_new(0);
-				int topicIndex;
+				rd_kafka_topic_partition_list_t *topics = kafkatcl_objv_to_topic_partition_list(&objv[2], objc-2);
 
-				for(topicIndex = 2; topicIndex < objc; topicIndex++) {
-					int partition = 0, i;
-					char *topicPartition = Tcl_GetString(objv[topicIndex]);
-					char *topic = ckalloc(strlen(topicPartition)+1);
-
-					for(i = 0; topicPartition[i] && topicPartition[i] != ':'; i++);
-					topic[i] = '\0';
-
-					if(topicPartition[i++])
-						partition = atoi(&topicPartition[i]);
-
-					rd_kafka_topic_partition_list_add(topics, topic, partition); // TODO be smarter about partition part
-
-					ckfree(topic);
-				}
-
-				rd_kafka_resp_err_t status = rd_kafka_subscribe(rk, new_topics);
+				rd_kafka_resp_err_t status = rd_kafka_subscribe(rk, topics);
 
 				rd_kafka_topic_partition_list_destroy(topics);
 
@@ -3558,8 +3584,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 		}
 
 		case OPT_ASSIGNMENT: {
-			int assIndex;
-			rd_kafka_topic_partition_list_t *asignments = NULL;
+			rd_kafka_topic_partition_list_t *assignments = NULL;
 			Tcl_Obj *result = Tcl_NewObj();
 			rd_kafka_resp_err_t status = rd_kafka_assignment(rk, &assignments);
 
@@ -3568,15 +3593,37 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 				return TCL_ERROR;
 			}
 
-			for(assIndex = 0; assIndex < assignments->cnt; assIndex++) {
-				Tcl_Obj topicPartition = Tcl_NewStringObj(assignments->elems[assIndex]->topic, -1);
-				Tcl_AppendPrintfToObj(topicPartition, ":%d", assignments->elems[assIndex]->partition);
-				Tcl_ListObjAppendElement(result, topicPartition);
-			}
+			result = kafkatcl_topic_partition_list_to_list(assignments);
 
 			rd_kafka_topic_partition_list_destroy(assignments);
 
 			Tcl_SetObjResult(interp, result);
+		}
+
+		case OPT_COMMIT: {
+			rd_kafka_topic_partition_list_t *partitions = NULL;
+			int partitionIndex = 2;
+			int async = 0;
+
+			if(objc > partitionIndex && strcmp(Tcl_GetString(objv[partitionIndex], "-async") == 0) {
+				async = 1;
+				partitionIndex++;
+			}
+
+			if(objc > partitionIndex)
+				partitions = kafkatcl_objv_to_topic_partition_list(&objv[partitionIndex], objc-partitionIndex);
+			}
+
+			rd_kafka_resp_err_t status = rd_kafka_commit(rk, partitions, async);
+
+			if(partitions)
+				rd_kafka_topic_partition_list_destroy(partitions);
+
+			if(status != RD_KAFKA_RESP_ERR_NO_ERROR) {
+				Tcl_AppendResult(interp, rd_kafka_err2str(status), NULL);
+				return TCL_ERROR;
+			}
+			break;
 		}
 
 		case OPT_DELETE: {
