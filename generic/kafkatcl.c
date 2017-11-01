@@ -170,6 +170,51 @@ kafkatcl_queueObjectDelete (ClientData clientData)
 /*
  *--------------------------------------------------------------
  *
+ * kafkatcl_subscriberObjectDelete -- command deletion callback routine.
+ *
+ * Results:
+ *      ...destroys the handle object.
+ *      ...frees memory.
+ *
+ * Side effects:
+ *      None.
+ *
+ *
+ *      NB IF YOU DESTROY THE HANDLE YOU HAVE TO DESTROY THE TOPICS AND THE QUEUES
+ *
+ *--------------------------------------------------------------
+ */
+void
+kafkatcl_subscriberObjectDelete (ClientData clientData)
+{
+    kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)clientData;
+
+    assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
+
+	// TODO: if there's a queue out, call rd_kafka_queue_destroy() on it
+
+	rd_kafka_consumer_close(rh->rk);
+
+	rd_kafka_destroy (kh->rk);
+
+	// destroy metadata if it exists
+	if (kh->metadata != NULL) {
+		rd_kafka_metadata_destroy (kh->metadata);
+	}
+
+	// clear the kafka handle magic number; this will help us catch
+	// attempted reuse of the structure after freeing
+    kh->kafka_handle_magic = 0;
+
+	rd_kafka_topic_conf_destroy (kh->topicConf);
+
+    ckfree((char *)clientData);
+}
+
+
+/*
+ *--------------------------------------------------------------
+ *
  * kafkatcl_parse_offset -- parse an offset from tcl, can be a straight up
  *   number.
  *
@@ -3428,36 +3473,37 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 int
 kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 {
-    int         optIndex;
+	int                        optIndex;
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)cData;
-	rd_kafka_t *rk = kh->rk;
-	int resultCode = TCL_OK;
+	rd_kafka_t                *rk = kh->rk;
+	int                        resultCode = TCL_OK;
 
-    static CONST char *options[] = {
-        "subscribe", // topics (no topics returns current subscription)
-        "unsubscribe", // clear subscription list
-        "partitions", // partitions?
-        "delete",
-        NULL
-    };
+	static CONST char *options[] = {
+		"subscribe", // topics (no topics returns current subscription)
+		"unsubscribe", // clear subscription list
+		"assignment", // current actual assignment
+		"delete",
+		NULL
+	};
 
-    enum options {
-        OPT_SUBSCRIBE,
-		OPT_PARTITIONS,
+	enum options {
+		OPT_SUBSCRIBE,
+		OPT_UNSUBSCRIBE,
+		OPT_ASSIGNMENT,
 		OPT_DELETE
-    };
+	};
 
-    /* basic validation of command line arguments */
-    if (objc < 2) {
-        Tcl_WrongNumArgs (interp, 1, objv, "subcommand ?args?");
-        return TCL_ERROR;
-    }
-
-    if (Tcl_GetIndexFromObj (interp, objv[1], options, "option", TCL_EXACT, &optIndex) != TCL_OK) {
+	/* basic validation of command line arguments */
+	if (objc < 2) {
+		Tcl_WrongNumArgs (interp, 1, objv, "subcommand ?args?");
 		return TCL_ERROR;
-    }
+	}
 
-    switch ((enum options) optIndex) {
+	if (Tcl_GetIndexFromObj (interp, objv[1], options, "option", TCL_EXACT, &optIndex) != TCL_OK) {
+		return TCL_ERROR;
+	}
+
+	switch ((enum options) optIndex) {
 		case OPT_SUBSCRIBE: {
 			if (objc == 2) {
 				int topicIndex;
@@ -3499,7 +3545,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 					ckfree(topic);
 				}
 
-				rd_kafka_resp_err_t status = rd_kafka_subscribe(rk, topics);
+				rd_kafka_resp_err_t status = rd_kafka_subscribe(rk, new_topics);
 
 				rd_kafka_topic_partition_list_destroy(topics);
 
@@ -3511,8 +3557,29 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 			break;
 		}
 
+		case OPT_ASSIGNMENT: {
+			int assIndex;
+			rd_kafka_topic_partition_list_t *asignments = NULL;
+			Tcl_Obj *result = Tcl_NewObj();
+			rd_kafka_resp_err_t status = rd_kafka_assignment(rk, &assignments);
+
+			if(status != RD_KAFKA_RESP_ERR_NO_ERROR) {
+				Tcl_AppendResult(interp, rd_kafka_err2str(status), NULL);
+				return TCL_ERROR;
+			}
+
+			for(assIndex = 0; assIndex < assignments->cnt; assIndex++) {
+				Tcl_Obj topicPartition = Tcl_NewStringObj(assignments->elems[assIndex]->topic, -1);
+				Tcl_AppendPrintfToObj(topicPartition, ":%d", assignments->elems[assIndex]->partition);
+				Tcl_ListObjAppendElement(result, topicPartition);
+			}
+
+			rd_kafka_topic_partition_list_destroy(assignments);
+
+			Tcl_SetObjResult(interp, result);
+		}
+
 		case OPT_DELETE: {
-			// call rd_kafka_consumer_close first
 			if (objc != 2) {
 				Tcl_WrongNumArgs (interp, 2, objv, "");
 				return TCL_ERROR;
