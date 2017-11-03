@@ -193,7 +193,7 @@ kafkatcl_subscriberObjectDelete (ClientData clientData)
 
 	// TODO: if there's a queue out, call rd_kafka_queue_destroy() on it
 
-	rd_kafka_consumer_close(rh->rk);
+	rd_kafka_consumer_close(kh->rk);
 
 	rd_kafka_destroy (kh->rk);
 
@@ -1094,7 +1094,7 @@ kafkatcl_EventCheckProc (ClientData clientData, int flags) {
 
 	// polling with timeoutMS of 0 is nonblocking, which is ideal
 	rd_kafka_poll (kh->rk, 0);
-	kafkatcl_check_subscriber_callbacks(kh->ko);
+	//kafkatcl_check_subscriber_callbacks(kh->ko); // TODO
 	kafkatcl_check_consumer_callbacks (kh->ko);
 }
 
@@ -3458,7 +3458,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
     return resultCode;
 }
 
-rd_kafka_topic_partition_list_t *kafkatcl_objv_to_topic_partition_list(Tcl_Obj **objv, int objc)
+rd_kafka_topic_partition_list_t *kafkatcl_objv_to_topic_partition_list(Tcl_Obj *const*objv, int objc)
 {
 	rd_kafka_topic_partition_list_t *list = rd_kafka_topic_partition_list_new(0);
 	int i;
@@ -3467,7 +3467,7 @@ rd_kafka_topic_partition_list_t *kafkatcl_objv_to_topic_partition_list(Tcl_Obj *
 
 	for(i = 0; i < objc; i++) {
 		int partition = 0, j;
-		char *topicPartition = Tcl_GetString(objv[i]);
+		const char *topicPartition = Tcl_GetString(objv[i]);
 		int topicLen = strlen(topicPartition);
 
 		if(!topic || topicSize < topicLen+1) {
@@ -3490,15 +3490,15 @@ rd_kafka_topic_partition_list_t *kafkatcl_objv_to_topic_partition_list(Tcl_Obj *
 	return list;
 }
 
-Tcl_Obj *kafkatcl_topic_partition_list_to_list(rd_kafka_topic_partition_list_t *topics)
+Tcl_Obj *kafkatcl_topic_partition_list_to_list(Tcl_Interp *interp, rd_kafka_topic_partition_list_t *topics)
 {
 	Tcl_Obj *result = Tcl_NewObj();
 	int i;
 
-	for(i = 0; topicIndex < topics->cnt; i++) {
-		Tcl_Obj topicPartition = Tcl_NewStringObj(topics->elems[i]->topic, -1);
-		Tcl_AppendPrintfToObj(topicPartition, ":%d", topics->elems[i]->partition);
-		Tcl_ListObjAppendElement(result, topicPartition);
+	for(i = 0; i < topics->cnt; i++) {
+		Tcl_Obj *topicPartition = Tcl_NewStringObj(topics->elems[i].topic, -1);
+		Tcl_AppendPrintfToObj(topicPartition, ":%d", topics->elems[i].partition);
+		Tcl_ListObjAppendElement(interp, result, topicPartition);
 	}
 
 	return result;
@@ -3507,7 +3507,7 @@ Tcl_Obj *kafkatcl_topic_partition_list_to_list(rd_kafka_topic_partition_list_t *
 /*
  *----------------------------------------------------------------------
  *
- * kafkatcl_subscriberObjectObjCmd --
+ * kafkatcl_handleSubscriberObjectObjCmd --
  *
  *    dispatches the subcommands of a kafkatcl subscriber-handling command
  *
@@ -3517,7 +3517,7 @@ Tcl_Obj *kafkatcl_topic_partition_list_to_list(rd_kafka_topic_partition_list_t *
  *----------------------------------------------------------------------
  */
 int
-kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 {
 	int                        optIndex;
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)cData;
@@ -3563,7 +3563,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 					return TCL_ERROR;
 				}
 
-				result = kafkatcl_topic_partition_list_to_list(topics);
+				result = kafkatcl_topic_partition_list_to_list(interp, topics);
 
 				rd_kafka_topic_partition_list_destroy(topics);
 
@@ -3583,6 +3583,23 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 			break;
 		}
 
+		case OPT_UNSUBSCRIBE: {
+			rd_kafka_resp_err_t status;
+
+			if (objc > 2) {
+				Tcl_WrongNumArgs (interp, 2, objv, "");
+				return TCL_ERROR;
+			}
+
+			status = rd_kafka_unsubscribe (rk);
+
+			if(status != RD_KAFKA_RESP_ERR_NO_ERROR) {
+				Tcl_AppendResult(interp, rd_kafka_err2str(status), NULL);
+				return TCL_ERROR;
+			}
+			break;
+		}
+				
 		case OPT_ASSIGNMENT: {
 			rd_kafka_topic_partition_list_t *assignments = NULL;
 			Tcl_Obj *result = Tcl_NewObj();
@@ -3593,7 +3610,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 				return TCL_ERROR;
 			}
 
-			result = kafkatcl_topic_partition_list_to_list(assignments);
+			result = kafkatcl_topic_partition_list_to_list(interp, assignments);
 
 			rd_kafka_topic_partition_list_destroy(assignments);
 
@@ -3605,12 +3622,12 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 			int partitionIndex = 2;
 			int async = 0;
 
-			if(objc > partitionIndex && strcmp(Tcl_GetString(objv[partitionIndex], "-async") == 0) {
+			if(objc > partitionIndex && strcmp(Tcl_GetString(objv[partitionIndex]), "-async") == 0) {
 				async = 1;
 				partitionIndex++;
 			}
 
-			if(objc > partitionIndex)
+			if(objc > partitionIndex) {
 				partitions = kafkatcl_objv_to_topic_partition_list(&objv[partitionIndex], objc-partitionIndex);
 			}
 
@@ -3754,7 +3771,7 @@ kafkatcl_createSubscriberObjectCommand (kafkatcl_objectClientData *ko, char *cmd
 	rd_kafka_conf_t *conf = rd_kafka_conf_dup (ko->conf);
 
 	// create the handle
-	rd_kafka_t *rk = rd_kafka_new (kafkaType, conf, errStr, sizeof(errStr));
+	rd_kafka_t *rk = rd_kafka_new (RD_KAFKA_CONSUMER, conf, errStr, sizeof(errStr));
 
 	if (rk == NULL) {
 		Tcl_SetObjResult (interp, Tcl_NewStringObj (errStr, -1));
@@ -3765,7 +3782,7 @@ kafkatcl_createSubscriberObjectCommand (kafkatcl_objectClientData *ko, char *cmd
 	kh->interp = interp;
 	kh->rk = rk;
 	kh->ko = ko;
-	kh->kafkaType = -1; // No type
+	kh->kafkaType = RD_KAFKA_CONSUMER;
 	kh->threadId = Tcl_GetCurrentThread ();
 	kh->metadata = NULL;
 	kh->topicConf = rd_kafka_topic_conf_dup (ko->topicConf);
@@ -3780,7 +3797,7 @@ kafkatcl_createSubscriberObjectCommand (kafkatcl_objectClientData *ko, char *cmd
 	}
 
 	// create a Tcl command to interface to the handle object
-	kh->cmdToken = Tcl_CreateObjCommand (interp, cmdName, kafkatcl_subscriberObjectObjCmd, kh, kafkatcl_subscriberObjectDelete);
+	kh->cmdToken = Tcl_CreateObjCommand (interp, cmdName, kafkatcl_handleSubscriberObjectObjCmd, kh, kafkatcl_subscriberObjectDelete);
 	// set the full name to the command in the interpreter result
 	Tcl_GetCommandFullName(interp, kh->cmdToken, Tcl_GetObjResult (interp));
 	if (autoGeneratedName == 1) {
@@ -3916,7 +3933,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 				return TCL_ERROR;
 			}
 			char *cmdName = Tcl_GetString (objv[2]);
-			resultCode = kafkatcl_createSubscriberObjectCommand (ko, cmdName, type);
+			resultCode = kafkatcl_createSubscriberObjectCommand (ko, cmdName);
 			break;
 		}
 
