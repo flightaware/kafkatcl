@@ -1092,10 +1092,27 @@ void
 kafkatcl_EventCheckProc (ClientData clientData, int flags) {
     kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)clientData;
 
-	// polling with timeoutMS of 0 is nonblocking, which is ideal
-	rd_kafka_poll (kh->rk, 0);
-	//kafkatcl_check_subscriber_callbacks(kh->ko); // TODO
-	kafkatcl_check_consumer_callbacks (kh->ko);
+	if (kh->something) { // it's a subscriber interface, so call consumer_poll
+		kafkatcl_consumer_poll(kh);
+	} else { // it's a producer or legacy consumer
+		// polling with timeoutMS of 0 is nonblocking, which is ideal
+		rd_kafka_poll (kh->rk, 0);
+		kafkatcl_check_consumer_callbacks (kh->ko);
+	}
+}
+
+void kafkatcl_consumer_poll(kafkatcl_handleClientData *kh)
+{
+	rd_kafka_t *rk = kh->rk;
+	rd_kafka_message_t *m;
+
+	while(m = rd_kafka_consumer_poll(rk, 0)) {
+		if(m->err == RD_KAFKA_RESP_ERR_NO_ERROR) {
+			callback to tcl;
+		} else {
+			do something with error;
+		}
+	}
 }
 
 /*
