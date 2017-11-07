@@ -116,6 +116,12 @@ x(topic)     = test.test
 
  You can configure them and do all the stuff with them.
 
+* **kafka::subscriber** *command*
+
+ Create a kafkatcl topic-consuming command named *command*
+
+ This uses the new subscription based API that allows it to follow multiple topics and multiple consumers are load-balanced between the subscribers automatically.
+
 * **kafka::setup_producer**
 
  You don't need this unless you want to configure the producer object before creating a topic producer.  Likewise for setup_consumer.
