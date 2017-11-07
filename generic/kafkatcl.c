@@ -20,6 +20,9 @@ int
 kafkatcl_check_consumer_callbacks (kafkatcl_objectClientData *ko);
 
 void
+kafkatcl_subscriber_poll(kafkatcl_handleClientData *kh);
+
+void
 kafkatcl_consume_stop_all_partitions (kafkatcl_topicClientData *kt);
 
 // add a way to marshall a list of partitions being consumed
@@ -1092,30 +1095,13 @@ void
 kafkatcl_EventCheckProc (ClientData clientData, int flags) {
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)clientData;
 
-	if (kh->something) { // it's a subscriber interface, so call consumer_poll
-		kafkatcl_consumer_poll(kh);
+	if (kh->subscriber) { // it's a subscriber interface, so call consumer_poll
+		// TODO: Do I also need to call rd_kafka_poll?
+		kafkatcl_subscriber_poll(kh);
 	} else { // it's a producer or legacy consumer
 		// polling with timeoutMS of 0 is nonblocking, which is ideal
 		rd_kafka_poll (kh->rk, 0);
 		kafkatcl_check_consumer_callbacks (kh->ko);
-	}
-}
-
-void kafkatcl_consumer_poll(kafkatcl_handleClientData *kh)
-{
-	rd_kafka_t *rk = kh->rk;
-	rd_kafka_message_t *m;
-	Tcl_Interp *interp = kh->interp;
-
-	while(m = rd_kafka_consumer_poll(rk, 0)) {
-		Tcl_Obj *l = kafkatcl_message_to_tcl_list(interp, m);
-
-		rd_kafka_message_destroy(m);
-
-		if(!l) 
-			break;
-
-		kafkatcl_invoke_callback_with_argument (interp, kh->subscriberCallback, l);
 	}
 }
 
@@ -3485,10 +3471,10 @@ rd_kafka_topic_partition_list_t *kafkatcl_objv_to_topic_partition_list(Tcl_Inter
 	int i;
 
 	for(i = 0; i < objc; i++) {
-		rd_kafka_topic_partition_t *partPtr;
-		int       partition = 0
+		rd_kafka_topic_partition_t *added;
+		char     *topic = NULL;
+		int       partition = 0;
 		int       offset = 0;
-		int       j;
 		int       tupleObjc;
 		Tcl_Obj **tupleObjv;
 
@@ -3502,7 +3488,7 @@ rd_kafka_topic_partition_list_t *kafkatcl_objv_to_topic_partition_list(Tcl_Inter
 		if(tupleObjc == 0)
 			continue;
 
-		topic = Tcl_GetString(tupleObjv[0];
+		topic = Tcl_GetString(tupleObjv[0]);
 
 		if(tupleObjc > 1) {
 			if(Tcl_GetIntFromObj(interp, tupleObjv[1], &partition) == TCL_ERROR) {
@@ -3518,12 +3504,11 @@ rd_kafka_topic_partition_list_t *kafkatcl_objv_to_topic_partition_list(Tcl_Inter
 			}
 		}
 
-		partPtr = rd_kafka_topic_partition_list_add(list, topic, partition);
+		added = rd_kafka_topic_partition_list_add(list, topic, partition);
 
 		if(tupleObjc > 2)
-			partPtr -> offset = offset;
+			added->offset = offset;
 	}
-	if(topic) ckfree(topic);
 
 	return list;
 }
@@ -3538,7 +3523,8 @@ Tcl_Obj *kafkatcl_topic_partition_list_to_list(Tcl_Interp *interp, rd_kafka_topi
 		Tcl_Obj *topicPartition = Tcl_NewObj();
 
 		Tcl_ListObjAppendElement(interp, topicPartition, Tcl_NewStringObj(topics->elems[i].topic, -1));
-		Tcl_ListObjAppendElement(interp, topicPartition, Tcl_NewIntObj(topics->elems[i].partition));
+		if(topics->elems[i].partition || topics->elems[i].offset)
+			Tcl_ListObjAppendElement(interp, topicPartition, Tcl_NewIntObj(topics->elems[i].partition));
 		if(topics->elems[i].offset)
 			Tcl_ListObjAppendElement(interp, topicPartition, Tcl_NewIntObj(topics->elems[i].offset));
 
@@ -3546,6 +3532,35 @@ Tcl_Obj *kafkatcl_topic_partition_list_to_list(Tcl_Interp *interp, rd_kafka_topi
 	}
 
 	return result;
+}
+
+void
+kafkatcl_set_subscriber_callback(kafkatcl_handleClientData *kh, Tcl_Obj *cb)
+{
+	if(kh->subscriberCallback) {
+		Tcl_DecrRefCount(kh->subscriberCallback);
+	}
+	kh->subscriberCallback = cb;
+	Tcl_IncrRefCount(kh->subscriberCallback);
+}
+
+void kafkatcl_subscriber_poll(kafkatcl_handleClientData *kh)
+{
+	rd_kafka_t *rk = kh->rk;
+	rd_kafka_message_t *message;
+	Tcl_Interp *interp = kh->interp;
+
+	while((message = rd_kafka_consumer_poll(rk, 0))) {
+		Tcl_Obj *msgList = kafkatcl_message_to_tcl_list(interp, message);
+
+		rd_kafka_message_destroy(message);
+
+		// Null message list means EOF
+		if(!msgList) 
+			break;
+
+		kafkatcl_invoke_callback_with_argument (interp, kh->subscriberCallback, msgList);
+	}
 }
 
 /*
@@ -3706,7 +3721,9 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 				break;
 			}
 
-			return kafkatcl_set_subscriber_callback (kh, objv[2]);
+			kafkatcl_set_subscriber_callback (kh, objv[2]);
+
+			return TCL_OK;
 		}
 
 		case OPT_DELETE: {
