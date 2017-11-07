@@ -3465,6 +3465,28 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
     return resultCode;
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_objv_to_topic_partition_list --
+ *
+ *    converts a Tcl list of { {topic partition offset} {topic partition offset} }
+ *    to a new-consumer-interface rd_kafka_topic_partition_list_t
+ *
+ *    offset is optional, and if the offset is not provided then the partition is
+ *    optional, so you can provide a simple {topic topic topic} list.
+ *
+ *    Topics starting with "^" are regular expressions.
+ *
+ *    Empty topics (like the second topic in this list: {topic {} topic}) are
+ *    silently dropped.
+ *
+ * Results:
+ *    Pointer to rd_kafka_topic_partition_list_t
+ *    Or NULL if there is an error in the provided Tcl list.
+ *
+ *----------------------------------------------------------------------
+ */
 rd_kafka_topic_partition_list_t *kafkatcl_objv_to_topic_partition_list(Tcl_Interp *interp, Tcl_Obj *const*objv, int objc)
 {
 	rd_kafka_topic_partition_list_t *list = rd_kafka_topic_partition_list_new(0);
@@ -3513,6 +3535,19 @@ rd_kafka_topic_partition_list_t *kafkatcl_objv_to_topic_partition_list(Tcl_Inter
 	return list;
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_topic_partition_list_to_list --
+ *
+ *    converts rd_kafka_topic_partition_list_t to a Tcl list. Only the topic, partition
+ *    and offset (if non zero) is retained. Metadata is discarded.
+ *
+ * Results:
+ *    A Tcl_Obj containing a list of the form {{topic ?partition ?offset??}}
+ *
+ *----------------------------------------------------------------------
+ */
 Tcl_Obj *kafkatcl_topic_partition_list_to_list(Tcl_Interp *interp, rd_kafka_topic_partition_list_t *topics)
 {
 	Tcl_Obj *result = Tcl_NewObj();
@@ -3534,6 +3569,19 @@ Tcl_Obj *kafkatcl_topic_partition_list_to_list(Tcl_Interp *interp, rd_kafka_topi
 	return result;
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_set_subscriber_callback
+ *
+ *    Saves the TclObj provided in the client data. Releases the existing
+ *    object if present.
+ *
+ * Results:
+ *    None
+ *
+ *----------------------------------------------------------------------
+ */
 void
 kafkatcl_set_subscriber_callback(kafkatcl_handleClientData *kh, Tcl_Obj *cb)
 {
@@ -3544,11 +3592,25 @@ kafkatcl_set_subscriber_callback(kafkatcl_handleClientData *kh, Tcl_Obj *cb)
 	Tcl_IncrRefCount(kh->subscriberCallback);
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_subscriber_poll
+ *
+ *    Pulls messages off a subscriber (new consumer API) Kafka connection.
+ *
+ * Results:
+ *    Executes the subscriber callback for each event.
+ *
+ *----------------------------------------------------------------------
+ */
 void kafkatcl_subscriber_poll(kafkatcl_handleClientData *kh)
 {
 	rd_kafka_t *rk = kh->rk;
 	rd_kafka_message_t *message;
 	Tcl_Interp *interp = kh->interp;
+
+	if(!kh->subscriber) return;
 
 	while((message = rd_kafka_consumer_poll(rk, 0))) {
 		Tcl_Obj *msgList = kafkatcl_message_to_tcl_list(interp, message);
