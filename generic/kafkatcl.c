@@ -3586,6 +3586,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 	static CONST char *options[] = {
 		"subscribe", // topics (no topics returns current subscription)
 		"unsubscribe", // clear subscription list
+		"assign", // manually assign topics
 		"assignment", // current actual assignment
 		"commit",
 		"callback",
@@ -3630,6 +3631,11 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 
 				Tcl_SetObjResult(interp, result);
 			} else {
+				if(!kh->subscriberCallback) {
+					Tcl_AppendResult(interp, "Set a callback before subscribing to topics", NULL);
+					return TCL_ERROR;
+				}
+
 				rd_kafka_topic_partition_list_t *topics = kafkatcl_objv_to_topic_partition_list(interp, &objv[2], objc-2);
 				if(!topics)
 					return TCL_ERROR;
@@ -3644,6 +3650,27 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 				}
 			}
 			break;
+		}
+
+		case OPT_ASSIGN: {
+			if(!kh->subscriberCallback) {
+				Tcl_AppendResult(interp, "Set a callback before subscribing to topics", NULL);
+				return TCL_ERROR;
+			}
+
+			rd_kafka_topic_partition_list_t *topics = kafkatcl_objv_to_topic_partition_list(interp, &objv[2], objc-2);
+			if(!topics)
+				return TCL_ERROR;
+
+			rd_kafka_resp_err_t status = rd_kafka_assign(rk, topics);
+
+			rd_kafka_topic_partition_list_destroy(topics);
+
+			if(status != RD_KAFKA_RESP_ERR_NO_ERROR) {
+				Tcl_AppendResult(interp, rd_kafka_err2str(status), NULL);
+				return TCL_ERROR;
+			}
+
 		}
 
 		case OPT_UNSUBSCRIBE: {
