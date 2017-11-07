@@ -3597,6 +3597,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 	enum options {
 		OPT_SUBSCRIBE,
 		OPT_UNSUBSCRIBE,
+		OPT_ASSIGN,
 		OPT_ASSIGNMENT,
 		OPT_COMMIT,
 		OPT_CALLBACK,
