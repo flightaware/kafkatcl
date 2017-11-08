@@ -3667,6 +3667,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 		"commit",
 		"consume",
 		"callback",
+		"offsets",
 		"delete",
 		NULL
 	};
@@ -3679,6 +3680,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 		OPT_COMMIT,
 		OPT_CONSUME,
 		OPT_CALLBACK,
+		OPT_OFFSETS,
 		OPT_DELETE
 	};
 
@@ -3774,6 +3776,8 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 			rd_kafka_topic_partition_list_destroy(assignments);
 
 			Tcl_SetObjResult(interp, result);
+
+			break;
 		}
 
 		case OPT_COMMIT: {
@@ -3801,6 +3805,47 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 				Tcl_AppendResult(interp, rd_kafka_err2str(status), NULL);
 				return TCL_ERROR;
 			}
+			break;
+		}
+
+		case OPT_OFFSETS: {
+			rd_kafka_topic_partition_list_t *partitions = NULL;
+			int partitionIndex = 2;
+			int committed = 0;
+			int status;
+			Tcl_Obj *result;
+
+			if(objc > partitionIndex && strcmp(Tcl_GetString(objv[partitionIndex]), "-committed") == 0) {
+				committed = 1;
+				partitionIndex++;
+			}
+
+			if(objc <= partitionIndex) {
+				Tcl_WrongNumArgs (interp, 2, objv, "?-committed? {topic partition} ?{topic partition}...?");
+				return TCL_ERROR;
+			}
+
+			partitions = kafkatcl_objv_to_topic_partition_list(interp, &objv[partitionIndex], objc-partitionIndex);
+			if(!partitions)
+				return TCL_ERROR;
+
+			if(committed)
+				status = rd_kafka_committed(rk, partitions, 0); // TODO - is 0 correct here?
+			else
+				status = rd_kafka_position(rk, partitions);
+
+			if(status != RD_KAFKA_RESP_ERR_NO_ERROR) {
+				Tcl_AppendResult(interp, rd_kafka_err2str(status), NULL);
+				rd_kafka_topic_partition_list_destroy(partitions);
+				return TCL_ERROR;
+			}
+
+			result = kafkatcl_topic_partition_list_to_list(interp, partitions);
+
+			rd_kafka_topic_partition_list_destroy(partitions);
+
+			Tcl_SetObjResult(interp, result);
+
 			break;
 		}
 
