@@ -3827,7 +3827,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 				if(kh->subscriberCallback != NULL)
 					Tcl_SetObjResult (interp, kh->subscriberCallback);
 			} else {
-				kafkatcl_set_subscriber_callback (kh, objv[2]);
+				kafkatcl_set_subscriber_callback (interp, kh, objv[2]);
 			}
 
 			return TCL_OK;
