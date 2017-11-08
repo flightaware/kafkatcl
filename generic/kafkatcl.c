@@ -3578,18 +3578,30 @@ Tcl_Obj *kafkatcl_topic_partition_list_to_list(Tcl_Interp *interp, rd_kafka_topi
  *    object if present.
  *
  * Results:
- *    None
+ *    TCL_ERROR if the callback is not a valid Tcl list
  *
  *----------------------------------------------------------------------
  */
-void
-kafkatcl_set_subscriber_callback(kafkatcl_handleClientData *kh, Tcl_Obj *cb)
+int
+kafkatcl_set_subscriber_callback(Tcl_Interp *interp, kafkatcl_handleClientData *kh, Tcl_Obj *cb)
 {
-	if(kh->subscriberCallback) {
-		Tcl_DecrRefCount(kh->subscriberCallback);
+	int res;
+	int len;
+
+	if((res = Tcl_ListObjLength(interp, cb, &len)) == TCL_OK) {
+		if(len == 0 || strcmp(Tcl_GetString(cb), "#none") == 0)
+			cb = NULL;
+
+		if(kh->subscriberCallback)
+			Tcl_DecrRefCount(kh->subscriberCallback);
+
+		kh->subscriberCallback = cb;
+
+		if(cb)
+			Tcl_IncrRefCount(kh->subscriberCallback);
 	}
-	kh->subscriberCallback = cb;
-	Tcl_IncrRefCount(kh->subscriberCallback);
+
+	return res;
 }
 
 /*
@@ -3651,6 +3663,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 		"assign", // manually assign topics
 		"assignment", // current actual assignment
 		"commit",
+		"consume",
 		"callback",
 		"delete",
 		NULL
@@ -3662,6 +3675,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 		OPT_ASSIGN,
 		OPT_ASSIGNMENT,
 		OPT_COMMIT,
+		OPT_CONSUME,
 		OPT_CALLBACK,
 		OPT_DELETE
 	};
@@ -3694,11 +3708,6 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 
 				Tcl_SetObjResult(interp, result);
 			} else {
-				if(!kh->subscriberCallback) {
-					Tcl_AppendResult(interp, "Set a callback before subscribing to topics", NULL);
-					return TCL_ERROR;
-				}
-
 				rd_kafka_topic_partition_list_t *topics = kafkatcl_objv_to_topic_partition_list(interp, &objv[2], objc-2);
 				if(!topics)
 					return TCL_ERROR;
@@ -3716,11 +3725,6 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 		}
 
 		case OPT_ASSIGN: {
-			if(!kh->subscriberCallback) {
-				Tcl_AppendResult(interp, "Set a callback before subscribing to topics", NULL);
-				return TCL_ERROR;
-			}
-
 			rd_kafka_topic_partition_list_t *topics = kafkatcl_objv_to_topic_partition_list(interp, &objv[2], objc-2);
 			if(!topics)
 				return TCL_ERROR;
@@ -3798,6 +3802,21 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 			break;
 		}
 
+		case OPT_CONSUME: {
+			rd_kafka_message_t *message = rd_kafka_consumer_poll(rk, 0);
+
+			if(message) {
+				Tcl_Obj *msgList = kafkatcl_message_to_tcl_list(interp, message);
+
+				rd_kafka_message_destroy(message);
+
+				if(msgList)
+					Tcl_SetObjResult(interp, msgList);
+			}
+
+			break;
+		}
+
 		case OPT_CALLBACK: {
 			if ((objc < 2) || (objc > 3)) {
 				Tcl_WrongNumArgs (interp, 2, objv, "?callback?");
@@ -3805,13 +3824,11 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 			}
 
 			if (objc == 2) {
-				if(kh->subscriberCallback == NULL)
-					break;
-				Tcl_SetObjResult (interp, kh->subscriberCallback);
-				break;
+				if(kh->subscriberCallback != NULL)
+					Tcl_SetObjResult (interp, kh->subscriberCallback);
+			} else {
+				kafkatcl_set_subscriber_callback (kh, objv[2]);
 			}
-
-			kafkatcl_set_subscriber_callback (kh, objv[2]);
 
 			return TCL_OK;
 		}
