@@ -3622,6 +3622,9 @@ kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
 	rd_kafka_message_t *message;
 	Tcl_Interp *interp = kh->interp;
 
+        // polling with timeoutMS of 0 is nonblocking, which is ideal
+        rd_kafka_poll (kh->rk, 0);
+
 	while((message = rd_kafka_consumer_poll(rk, 0))) {
 		Tcl_Obj *msgList = kafkatcl_message_to_tcl_list(interp, message);
 
