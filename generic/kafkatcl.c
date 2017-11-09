@@ -3626,7 +3626,7 @@ kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
         rd_kafka_poll (kh->rk, 0);
 
 	// If we don't have a subscriber callback, leave subscriber messages alone.
-	if(kh->subscriberCallback)
+	if(!kh->subscriberCallback)
 		return;
 
 	while((message = rd_kafka_consumer_poll(rk, 0))) {
@@ -3876,7 +3876,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 				return TCL_ERROR;
 			}
 
-			if (objc == 2) {
+			if (objc < 3) {
 				if(kh->subscriberCallback != NULL)
 					Tcl_SetObjResult (interp, kh->subscriberCallback);
 			} else {
@@ -4029,6 +4029,7 @@ kafkatcl_createSubscriberObjectCommand (kafkatcl_objectClientData *ko, char *cmd
 	kh->threadId = Tcl_GetCurrentThread ();
 	kh->metadata = NULL;
 	kh->topicConf = NULL;
+	kh->subscriberCallback = NULL;
 
 	Tcl_CreateEventSource (kafkatcl_EventSetupProc, kafkatcl_SubscriberEventCheckProc, (ClientData) kh);
 
