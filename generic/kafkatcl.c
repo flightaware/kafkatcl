@@ -4081,7 +4081,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 		"statistics_callback",
 		"logger",
 		"delete",
-		"subscription_creator",
+		"subscriber",
 		NULL
 	};
 
