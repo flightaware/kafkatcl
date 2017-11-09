@@ -3625,11 +3625,17 @@ kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
         // polling with timeoutMS of 0 is nonblocking, which is ideal
         rd_kafka_poll (kh->rk, 0);
 
+	// If we don't have a subscriber callback, leave subscriber messages alone.
+	if(kh->subscriberCallback)
+		return;
+
 	while((message = rd_kafka_consumer_poll(rk, 0))) {
 		Tcl_Obj *msgList = kafkatcl_message_to_tcl_list(interp, message);
 
 		// We don't need this any more
 		rd_kafka_message_destroy(message);
+
+// fprintf(stderr, "%08lx: %s\n", (long)message, Tcl_GetString(msgList));
 
 		// Null message list means EOF
 		if(!msgList) 
