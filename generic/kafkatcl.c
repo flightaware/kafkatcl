@@ -25,6 +25,26 @@ kafkatcl_subscriber_poll(kafkatcl_handleClientData *kh);
 void
 kafkatcl_consume_stop_all_partitions (kafkatcl_topicClientData *kt);
 
+// DEBUG
+#ifdef DEBUGPRINTF
+void kafkatcl_dump_topic_partition_list(rd_kafka_topic_partition_list_t *topics)
+{
+	int i;
+
+	if(topics->cnt) {
+		fprintf(stderr, "%d topics: ", topics->cnt);
+	} else {
+		fprintf(stderr, "0 topics;\n");
+		return;
+	}
+        for(i = 0; i < topics->cnt; i++) {
+		if(i) fprintf(stderr, ", ");
+		fprintf(stderr, "%s:%d:%ld", topics->elems[i].topic, topics->elems[i].partition, topics->elems[i].offset);
+	}
+	fprintf(stderr, ";\n");
+}
+#endif
+
 // add a way to marshall a list of partitions being consumed
 // add a way to stop all consumers
 // stop all topic consumers when deleting a topic
@@ -3548,7 +3568,6 @@ Tcl_Obj *kafkatcl_topic_partition_list_to_list(Tcl_Interp *interp, rd_kafka_topi
 	Tcl_Obj *result = Tcl_NewObj();
 	int i;
 
-	// CHANGEME make this generate a Tcl list of tuples {topic ?partition? ?offset?}
 	for(i = 0; i < topics->cnt; i++) {
 		Tcl_Obj *topicPartition = Tcl_NewObj();
 
@@ -3623,13 +3642,14 @@ kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
 	Tcl_Interp *interp = kh->interp;
 
         // polling with timeoutMS of 0 is nonblocking, which is ideal
-        rd_kafka_poll (kh->rk, 0);
+	// DON'T do this if you called rd_kafka_poll_set_consumer()
+        //rd_kafka_poll (kh->rk, 0);
 
 	// If we don't have a subscriber callback, leave subscriber messages alone.
 	if(!kh->subscriberCallback)
 		return;
 
-	while((message = rd_kafka_consumer_poll(rk, 0))) {
+	while((message = rd_kafka_consumer_poll(rk, 1))) {
 		Tcl_Obj *msgList = kafkatcl_message_to_tcl_list(interp, message);
 
 		// We don't need this any more
@@ -3722,6 +3742,10 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 				if(!topics)
 					return TCL_ERROR;
 
+#ifdef DEBUGPRINTF
+				fprintf(stderr, "Subscribing "); kafkatcl_dump_topic_partition_list(topics);
+#endif
+
 				rd_kafka_resp_err_t status = rd_kafka_subscribe(rk, topics);
 
 				rd_kafka_topic_partition_list_destroy(topics);
@@ -3739,6 +3763,9 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 			if(!topics)
 				return TCL_ERROR;
 
+#ifdef DEBUGPRINTF
+			fprintf(stderr, "Assigning "); kafkatcl_dump_topic_partition_list(topics);
+#endif
 			rd_kafka_resp_err_t status = rd_kafka_assign(rk, topics);
 
 			rd_kafka_topic_partition_list_destroy(topics);
@@ -3747,7 +3774,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 				Tcl_AppendResult(interp, rd_kafka_err2str(status), NULL);
 				return TCL_ERROR;
 			}
-
+			break;
 		}
 
 		case OPT_UNSUBSCRIBE: {
@@ -3802,6 +3829,9 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 					return TCL_ERROR;
 			}
 
+#ifdef DEBUGPRINTF
+			fprintf(stderr, "Committing "); kafkatcl_dump_topic_partition_list(partitions);
+#endif
 			rd_kafka_resp_err_t status = rd_kafka_commit(rk, partitions, async);
 
 			if(partitions)
@@ -3834,6 +3864,9 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 			partitions = kafkatcl_objv_to_topic_partition_list(interp, &objv[partitionIndex], objc-partitionIndex);
 			if(!partitions)
 				return TCL_ERROR;
+#ifdef DEBUGPRINTF
+			fprintf(stderr, "Checking "); kafkatcl_dump_topic_partition_list(partitions);
+#endif
 
 			if(committed)
 				status = rd_kafka_committed(rk, partitions, 0); // TODO - is 0 correct here?
@@ -3846,6 +3879,9 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 				return TCL_ERROR;
 			}
 
+#ifdef DEBUGPRINTF
+			fprintf(stderr, "Subscribing "); kafkatcl_dump_topic_partition_list(partitions);
+#endif
 			result = kafkatcl_topic_partition_list_to_list(interp, partitions);
 
 			rd_kafka_topic_partition_list_destroy(partitions);
@@ -3856,7 +3892,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 		}
 
 		case OPT_CONSUME: {
-			rd_kafka_message_t *message = rd_kafka_consumer_poll(rk, 0);
+			rd_kafka_message_t *message = rd_kafka_consumer_poll(rk, 1);
 
 			if(message) {
 				Tcl_Obj *msgList = kafkatcl_message_to_tcl_list(interp, message);
@@ -3989,6 +4025,42 @@ kafkatcl_createHandleObjectCommand (kafkatcl_objectClientData *ko, char *cmdName
 /*
  *----------------------------------------------------------------------
  *
+ * kafkatcl_default_rebalance_callback
+ *
+ *    Pass the rebalance request unomdified to the Kafka handle.
+ *
+ *----------------------------------------------------------------------
+ */
+void kafkatcl_default_rebalance_callback(rd_kafka_t *rk, rd_kafka_resp_err_t err, rd_kafka_topic_partition_list_t *partitions, void *opaque)
+{
+	switch(err) {
+		case RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS: {
+#ifdef DEBUGPRINTF
+			fprintf(stderr, "kafkatcl_default_rebalance_callback assigning: ");
+			kafkatcl_dump_topic_partition_list(partitions);
+#endif
+			rd_kafka_assign(rk, partitions);
+			break;
+		}
+		case RD_KAFKA_RESP_ERR__REVOKE_PARTITIONS: {
+			rd_kafka_topic_partition_list_t *empty = rd_kafka_topic_partition_list_new(0);
+#ifdef DEBUGPRINTF
+			fprintf(stderr, "kafkatcl_default_rebalance_callback deleting;");
+#endif
+			rd_kafka_assign(rk, empty);
+			rd_kafka_topic_partition_list_destroy(empty);
+			break;
+		}
+		default: {
+			fprintf(stderr, "kafkatcl_default_rebalance_callback(rk, %d, {}, opaque);\n", err);
+			break;
+		}
+	}
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
  * kafkatcl_createSubscriberObjectCommand --
  *
  *    given a kafkatcl_objectClientData pointer, create a handle object
@@ -4013,8 +4085,12 @@ kafkatcl_createSubscriberObjectCommand (kafkatcl_objectClientData *ko, char *cmd
 	// we don't want to give ours up
 	rd_kafka_conf_t *conf = rd_kafka_conf_dup (ko->conf);
 
+	// set the rebalance callback
+	rd_kafka_conf_set_rebalance_cb(conf, kafkatcl_default_rebalance_callback);
+
 	// create the handle
 	rd_kafka_t *rk = rd_kafka_new (RD_KAFKA_CONSUMER, conf, errStr, sizeof(errStr));
+
 
 	if (rk == NULL) {
 		Tcl_SetObjResult (interp, Tcl_NewStringObj (errStr, -1));
@@ -4030,6 +4106,9 @@ kafkatcl_createSubscriberObjectCommand (kafkatcl_objectClientData *ko, char *cmd
 	kh->metadata = NULL;
 	kh->topicConf = NULL;
 	kh->subscriberCallback = NULL;
+
+	// Need to do this OR call rd_kafka_poll() periodically.
+	rd_kafka_poll_set_consumer(rk);
 
 	Tcl_CreateEventSource (kafkatcl_EventSetupProc, kafkatcl_SubscriberEventCheckProc, (ClientData) kh);
 
