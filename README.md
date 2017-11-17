@@ -215,6 +215,10 @@ Methods of kafka interface object
 
  Create a kafkatcl consumer handle object.  The consumer handle object is used to connect with the kafka cluster and eventually create topic consumer topics.
 
+* *$kafka* **subscriber** *cmdName*
+
+ Create a kafkatcl subscriber handle object. This uses the new subscription based consumer API: the subscriber is used to consume events directly rather than creating topics.
+
 * *$kafka* **topic_config** *?key value? ...*
 
  If invoked without arguments returns a list of the default topic configuration properties and values.
@@ -512,13 +516,7 @@ Queue objects support the following methods:
 Methods of Subscriber object
 ---
 
- This uses the new subscription based API that allows it to follow multiple topics and multiple consumers are load-balanced between the subscribers automatically.
-
-* *$kafka* subscriber ?command-name?
-
-* *$kafka* subscriber #auto
-
- Create a kafkatcl subscription-consuming command ("subscriber") named *command-name* or generate the name with "#auto"
+ The subscriber object uses the new subscription based API that allows it to follow multiple topics and multiple consumers are load-balanced between the subscribers automatically.
 
 * *$subscriber* subscribe ?topic-list?
 
