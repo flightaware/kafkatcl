@@ -518,41 +518,41 @@ Methods of Subscriber object
 
  The subscriber object uses the new subscription based API that allows it to follow multiple topics and multiple consumers are load-balanced between the subscribers automatically.
 
-* *$subscriber* subscribe ?topic-list?
+* *$subscriber* **subscribe** *?topic-list?*
 
 Requests events from the named topics. Topics may be regexps if they start with "^". Partitions will be dynamically assigned to this subscriber by librdkafka. If the topic list is omitted it will return the current subscription.
 
-* *$subscriber* unsubscribe
+* *$subscriber* **unsubscribe**
 
 Remove the current subsciption list.
 
-* *$subscriber* assignments
+* *$subscriber* **assignments**
 
 List of topics and partitions assigned to this subscriber.
 
-* *$subscriber* assign ?topic-partition-list?
+* *$subscriber* **assign** *?topic-partition-list?*
 
 Manually override the assignment or remove it completely with a null assignment.
 
-* *$subscriber* consume
+* *$subscriber* **consume**
 
 Return the next event from the subscription as a key-value Tcl list.
 
-* *$subscriber* callback ?function?
+* *$subscriber* **callback** *?function?*
 
 Set a callback function to be passed events from this subscription in the background.
 
-* *$subscriber* offsets ?-committed? topic-partition-offset-list
+* *$subscriber* **offsets** *?-committed?* *topic-partition-offset-list*
 
 Return the offsets on the listed topics. There is no default. If the option "-committed" is provided, then it returns committed offsets.
 
-* *$subscriber* commit ?-async? ?topic-partition-offset-list?
+* *$subscriber* **commit** *?-async?* *?topic-partition-offset-list?*
 
 Commit the listed tuples. Default is all subscribed partitions.
 
 **topic-partition-offset-list**
 
-This is a list of tuples, {{topic partition offset} {topic partition offset} ...}
+This is a list of tuples, *{{topic partition offset} {topic partition offset} ...}*
 
 The offset is required for "commit", and may be left out or set to zero for assign
 
