@@ -542,11 +542,15 @@ Return the next event from the subscription as a key-value Tcl list.
 
 Set a callback function to be passed events from this subscription in the background.
 
-* *$subscriber* commit ?topic-partition-offset-list?
+* *$subscriber* offsets ?-committed? topic-partition-offset-list
 
-Commit the listed tuples.
+Return the offsets on the listed topics. There is no default. If the option "-committed" is provided, then it returns committed offsets.
 
-###topic-partition-offset-list
+* *$subscriber* commit ?-async? ?topic-partition-offset-list?
+
+Commit the listed tuples. Default is all subscribed partitions.
+
+**topic-partition-offset-list**
 
 This is a list of tuples, {{topic partition offset} {topic partition offset} ...}
 
