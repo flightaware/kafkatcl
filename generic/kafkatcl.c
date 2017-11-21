@@ -574,9 +574,13 @@ int kafkatcl_kafka_error_to_tcl (Tcl_Interp *interp, rd_kafka_resp_err_t kafkaEr
 /*
  *--------------------------------------------------------------
  *
- * kafkatcl_errorno_to_tcl_error -- some kafka library routines use errno
- *   to communicate errors.  We can use rd_kafka_errno2err to convert
- *   those to a more standard kafka error
+ * kafkatcl_last_error_to_tcl_error -- some kafka library routines use
+ *   a cached "last error" to communicate errors.  We call rd_kafka_last_error()
+ *   to get a value for kafkatcl_kafka_error_to_tcl()
+ *
+ *   This replaces kafktcl_errno_to_tcl_error which is deprecated. The
+ *   legacy API calls that use this mechanism will eventually be replaced,
+ *   but they're not deprecated yet.
  *
  * Results:
  *      A standard Tcl result
@@ -587,9 +591,8 @@ int kafkatcl_kafka_error_to_tcl (Tcl_Interp *interp, rd_kafka_resp_err_t kafkaEr
  *--------------------------------------------------------------
  */
 int
-kafktcl_errno_to_tcl_error (Tcl_Interp *interp) {
-	int myErrno = Tcl_GetErrno ();
-	rd_kafka_resp_err_t kafkaError = rd_kafka_errno2err (myErrno);
+kafkatcl_last_error_to_tcl_error (Tcl_Interp *interp) {
+	rd_kafka_resp_err_t kafkaError = rd_kafka_last_error();
 	return kafkatcl_kafka_error_to_tcl (interp, kafkaError, NULL);
 }
 
@@ -2181,7 +2184,7 @@ kafkatcl_consume_start (kafkatcl_topicClientData *kt, int partition, int64_t off
 	// tell librdkafka we want to start consuming this topic, partition,
 	// and offset
 	if (rd_kafka_consume_start (rkt, partition, offset) < 0) {
-		return kafktcl_errno_to_tcl_error (interp);
+		return kafkatcl_last_error_to_tcl_error (interp);
 	}
 
 
@@ -2298,7 +2301,7 @@ kafkatcl_consume_start_queue (kafkatcl_topicClientData *kt, int partition, int64
 	rd_kafka_topic_t *rkt = kt->rkt;
 
 	if (rd_kafka_consume_start_queue (rkt, partition, offset, kq->rkqu) < 0) {
-		return kafktcl_errno_to_tcl_error (interp);
+		return kafkatcl_last_error_to_tcl_error (interp);
 	}
 
 	return TCL_OK;
@@ -2325,7 +2328,7 @@ kafkatcl_consume_stop (kafkatcl_topicClientData *kt, int partition) {
 	Tcl_Interp *interp = kt->kh->interp;
 
 	if (rd_kafka_consume_stop (kt->rkt, partition) < 0) {
-		return kafktcl_errno_to_tcl_error (interp);
+		return kafkatcl_last_error_to_tcl_error (interp);
 	}
 
 	KT_LIST_FOREACH(krc, &kt->runningConsumers, runningConsumerInstance) {
@@ -2510,7 +2513,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			rd_kafka_message_t *rdm = rd_kafka_consume (rkt, partition, timeoutMS);
 
 			if (rdm == NULL) {
-				resultCode =  kafktcl_errno_to_tcl_error (interp);
+				resultCode =  kafkatcl_last_error_to_tcl_error (interp);
 				break;
 			}
 
@@ -2771,7 +2774,7 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			}
 
 			if (rd_kafka_produce (rkt, partition, RD_KAFKA_MSG_F_COPY, payload, payloadLength, key, keyLength, kt) < 0) {
-				resultCode =  kafktcl_errno_to_tcl_error (interp);
+				resultCode =  kafkatcl_last_error_to_tcl_error (interp);
 				break;
 			}
 			break;
@@ -2894,7 +2897,7 @@ kafkatcl_createTopicObjectCommand (kafkatcl_handleClientData *kh, char *cmdName,
 	rd_kafka_topic_t *rkt = rd_kafka_topic_new (kh->rk, topic, topicConf);
 
 	if (rkt == NULL) {
-		return kafktcl_errno_to_tcl_error (interp);
+		return kafkatcl_last_error_to_tcl_error (interp);
 	}
 
 	switch (kh->kafkaType) {
@@ -3013,7 +3016,7 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 			rd_kafka_message_t *rdm = rd_kafka_consume_queue (rkqu, timeoutMS);
 
 			if (rdm == NULL) {
-				resultCode =  kafktcl_errno_to_tcl_error (interp);
+				resultCode =  kafkatcl_last_error_to_tcl_error (interp);
 				break;
 			}
 
