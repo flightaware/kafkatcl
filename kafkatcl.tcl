@@ -109,6 +109,24 @@ proc setup_producer {args} {
 }
 
 #
+# subscriber - create and return a subscriber object
+#
+proc subscriber {groupid args} {
+	variable brokers
+
+	setup {*}$args
+
+	master config group.id $groupid
+	master config bootstrap.servers [join $brokers ,]
+
+	set subscriber [master subscriber #auto]
+
+	logger "created subscriber with brokers $brokers"
+
+	return $subscriber
+}
+
+#
 # brokers - specify a list of brokers
 #
 proc brokers {brokerList} {
