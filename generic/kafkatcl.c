@@ -3514,7 +3514,7 @@ rd_kafka_topic_partition_list_t *kafkatcl_objv_to_topic_partition_list(Tcl_Inter
 		rd_kafka_topic_partition_t *added;
 		char     *topic = NULL;
 		int       partition = 0;
-		int       offset = 0;
+		Tcl_WideInt offset = 0;
 		int       tupleObjc;
 		Tcl_Obj **tupleObjv;
 
@@ -3538,7 +3538,7 @@ rd_kafka_topic_partition_list_t *kafkatcl_objv_to_topic_partition_list(Tcl_Inter
 		}
 
 		if(tupleObjc > 2) {
-			if(Tcl_GetIntFromObj(interp, tupleObjv[2], &offset) == TCL_ERROR) {
+			if(Tcl_GetWideIntFromObj(interp, tupleObjv[2], &offset) == TCL_ERROR) {
 				rd_kafka_topic_partition_list_destroy(list);
 				return NULL;
 			}
@@ -3578,7 +3578,7 @@ Tcl_Obj *kafkatcl_topic_partition_list_to_list(Tcl_Interp *interp, rd_kafka_topi
 		if(topics->elems[i].partition || topics->elems[i].offset)
 			Tcl_ListObjAppendElement(interp, topicPartition, Tcl_NewIntObj(topics->elems[i].partition));
 		if(topics->elems[i].offset)
-			Tcl_ListObjAppendElement(interp, topicPartition, Tcl_NewIntObj(topics->elems[i].offset));
+			Tcl_ListObjAppendElement(interp, topicPartition, Tcl_NewWideIntObj(topics->elems[i].offset));
 
 		Tcl_ListObjAppendElement(interp, result, topicPartition);
 	}
