@@ -225,11 +225,13 @@ kafkatcl_subscriberObjectDelete (ClientData clientData)
 		rd_kafka_metadata_destroy (kh->metadata);
 	}
 
+	if (kh->topicConf != NULL) {
+		rd_kafka_topic_conf_destroy (kh->topicConf);
+	}
+
 	// clear the kafka handle magic number; this will help us catch
 	// attempted reuse of the structure after freeing
     kh->kafka_handle_magic = 0;
-
-	rd_kafka_topic_conf_destroy (kh->topicConf);
 
     ckfree((char *)clientData);
 }
