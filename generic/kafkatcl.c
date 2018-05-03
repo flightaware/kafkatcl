@@ -3853,14 +3853,26 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 			int committed = 0;
 			int status;
 			Tcl_Obj *result;
+			int timeoutMS = 5000; // default 5s timout for -committed
 
-			if(objc > partitionIndex && strcmp(Tcl_GetString(objv[partitionIndex]), "-committed") == 0) {
-				committed = 1;
-				partitionIndex++;
+			while (objc > partitionIndex) {
+				char *possibleOptionName = Tcl_GetString(objv[partitionIndex]);
+				if(strcmp(possibleOptionName, "-committed") == 0) {
+					partitionIndex++;
+					committed = 1;
+				} else if(strcmp(possibleOptionName, "-timeout") == 0) {
+					partitionIndex++;
+					if(Tcl_GetIntFromObj(interp, objv[partitionIndex], &timeoutMS) == TCL_ERROR) {
+						return TCL_ERROR;
+					}
+					partitionIndex++;
+				} else {
+					break;
+				}
 			}
 
 			if(objc <= partitionIndex) {
-				Tcl_WrongNumArgs (interp, 2, objv, "?-committed? {topic partition} ?{topic partition}...?");
+				Tcl_WrongNumArgs (interp, 2, objv, "?-committed? ?-timeout ms? {topic partition} ?{topic partition}...?");
 				return TCL_ERROR;
 			}
 
@@ -3872,7 +3884,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 #endif
 
 			if(committed)
-				status = rd_kafka_committed(rk, partitions, 0); // TODO - is 0 correct here?
+				status = rd_kafka_committed(rk, partitions, timeoutMS);
 			else
 				status = rd_kafka_position(rk, partitions);
 
@@ -3895,7 +3907,20 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 		}
 
 		case OPT_CONSUME: {
-			rd_kafka_message_t *message = rd_kafka_consumer_poll(rk, 1);
+			int timeoutMS;
+
+			if(objc <= 2) {
+				timeoutMS = 1; // compatibility
+			} else if (objc == 3) {
+				if(Tcl_GetIntFromObj(interp, objv[2], &timeoutMS) == TCL_ERROR) {
+					return TCL_ERROR;
+				}
+			} else {
+				Tcl_WrongNumArgs (interp, 2, objv, "?timeout?");
+				return TCL_ERROR;
+			}
+
+			rd_kafka_message_t *message = rd_kafka_consumer_poll(rk, timeoutMS);
 
 			if(message) {
 				Tcl_Obj *msgList = kafkatcl_message_to_tcl_list(interp, message);
