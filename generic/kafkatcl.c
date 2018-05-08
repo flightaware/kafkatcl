@@ -236,6 +236,21 @@ kafkatcl_subscriberObjectDelete (ClientData clientData)
     ckfree((char *)clientData);
 }
 
+static CONST char *optionStrings[] = {
+	"beginning",
+	"end",
+	"stored",
+	NULL,
+	"invalid" // goes after null because it's not legal in input
+};
+
+enum options {
+	OPT_BEGINNING,
+	OPT_END,
+	OPT_STORED,
+	OPT_NULL,
+	OPT_INVALID
+};
 
 /*
  *--------------------------------------------------------------
@@ -280,19 +295,6 @@ kafkatcl_parse_offset (Tcl_Interp *interp, Tcl_Obj *offsetObj, int64_t *offsetPt
 		return TCL_OK;
 	}
 
-    static CONST char *optionStrings[] = {
-        "beginning",
-        "end",
-        "stored",
-        NULL
-    };
-
-    enum options {
-        OPT_BEGINNING,
-        OPT_END,
-        OPT_STORED
-	};
-
     // argument must be one of the options defined above
     if (Tcl_GetIndexFromObj (interp, offsetObj, optionStrings, "offsetString",
         TCL_EXACT, &optionIndex) != TCL_OK) {
@@ -315,9 +317,51 @@ kafkatcl_parse_offset (Tcl_Interp *interp, Tcl_Obj *offsetObj, int64_t *offsetPt
 			*offsetPtr = RD_KAFKA_OFFSET_STORED;
 			break;
 		}
+
+	case OPT_NULL:
+	case OPT_INVALID: {
+			Tcl_ResetResult (interp);
+			Tcl_AppendResult (interp, "kafka error: internal error - invalid optionIndex", NULL);
+			return TCL_ERROR;
+		}
 	}
 
 	return TCL_OK;
+}
+
+/*
+ *--------------------------------------------------------------
+ * kafkatcl_NewOffsetObj -- formats an offset into a Tcl object
+ *--------------------------------------------------------------
+ */
+Tcl_Obj *
+kafkatcl_NewOffsetObj (int64_t offset) {
+	const char *offsetName = NULL;
+
+	switch (offset) {
+		case RD_KAFKA_OFFSET_BEGINNING: {
+			offsetName = optionStrings[OPT_BEGINNING];
+			break;
+		}
+		case RD_KAFKA_OFFSET_END: {
+			offsetName = optionStrings[OPT_END];
+			break;
+		}
+		case RD_KAFKA_OFFSET_STORED: {
+			offsetName = optionStrings[OPT_STORED];
+			break;
+		}
+		case RD_KAFKA_OFFSET_INVALID: {
+			offsetName = optionStrings[OPT_INVALID];
+			break;
+		}
+	}
+
+	if(offsetName) {
+		return Tcl_NewStringObj(offsetName, -1);
+	} else {
+		return Tcl_NewWideIntObj(offset);
+	}
 }
 
 /*
@@ -860,7 +904,7 @@ kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 		listObjv[i++] = Tcl_NewIntObj (rdm->partition);
 
 		listObjv[i++] = Tcl_NewStringObj ("offset", -1);
-		listObjv[i++] = Tcl_NewWideIntObj (rdm->offset);
+		listObjv[i++] = kafkatcl_NewOffsetObj (rdm->offset);
 
 		// include the topic name if there is a topic structure
 		if (rdm->rkt != NULL) {
@@ -966,7 +1010,7 @@ kafkatcl_message_to_tcl_array (Tcl_Interp *interp, char *arrayName, rd_kafka_mes
 			}
 		}
 
-		Tcl_Obj *offsetObj = Tcl_NewWideIntObj (rdm->offset);
+		Tcl_Obj *offsetObj = kafkatcl_NewOffsetObj (rdm->offset);
 		if (Tcl_SetVar2Ex (interp, arrayName, "offset", offsetObj, (TCL_LEAVE_ERR_MSG)) == NULL) {
 			return TCL_ERROR;
 		}
@@ -3540,7 +3584,7 @@ rd_kafka_topic_partition_list_t *kafkatcl_objv_to_topic_partition_list(Tcl_Inter
 		}
 
 		if(tupleObjc > 2) {
-			if(Tcl_GetWideIntFromObj(interp, tupleObjv[2], &offset) == TCL_ERROR) {
+			if(kafkatcl_parse_offset(interp, tupleObjv[2], &offset) == TCL_ERROR) {
 				rd_kafka_topic_partition_list_destroy(list);
 				return NULL;
 			}
@@ -3580,7 +3624,7 @@ Tcl_Obj *kafkatcl_topic_partition_list_to_list(Tcl_Interp *interp, rd_kafka_topi
 		if(topics->elems[i].partition || topics->elems[i].offset)
 			Tcl_ListObjAppendElement(interp, topicPartition, Tcl_NewIntObj(topics->elems[i].partition));
 		if(topics->elems[i].offset)
-			Tcl_ListObjAppendElement(interp, topicPartition, Tcl_NewWideIntObj(topics->elems[i].offset));
+			Tcl_ListObjAppendElement(interp, topicPartition, kafkatcl_NewOffsetObj(topics->elems[i].offset));
 
 		Tcl_ListObjAppendElement(interp, result, topicPartition);
 	}
