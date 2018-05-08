@@ -3956,7 +3956,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 			int timeoutMS;
 
 			if(objc <= 2) {
-				timeoutMS = 1; // compatibility
+				timeoutMS = 0; // no timeout means poll
 			} else if (objc == 3) {
 				if(Tcl_GetIntFromObj(interp, objv[2], &timeoutMS) == TCL_ERROR) {
 					return TCL_ERROR;
