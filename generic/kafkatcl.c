@@ -331,7 +331,7 @@ kafkatcl_parse_offset (Tcl_Interp *interp, Tcl_Obj *offsetObj, int64_t *offsetPt
 
 /*
  *--------------------------------------------------------------
- * kafkatcl_format_offset -- formats an offset into a Tcl object
+ * kafkatcl_NewOffsetObj -- formats an offset into a Tcl object
  *--------------------------------------------------------------
  */
 Tcl_Obj *
