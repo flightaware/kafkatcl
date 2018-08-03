@@ -227,7 +227,9 @@ Methods of kafka interface object
 
 * *$kafka* **partitioner** *partitionerName*
 
- Selects one of the rdkafka-provided partitioners.  The partitioner determines which partition a message should go in.  *random* selects the random partitioner (the default) which will cause produced messages to go into a random partition between zero and the number of partitions of the topic minus one.
+ Selects one of the rdkafka-provided partitioners.  The partitioner determines which partition a message should go in.
+
+ *random* selects the random partitioner (the default) which will cause produced messages to go into a random partition between zero and the number of partitions of the topic minus one.
 
  *consistent* uses a consistent hashing to map identical keys onto identical partitions.  The key must be specified when producing messages when the consistent partitioner has been selected.
 
@@ -516,7 +518,7 @@ Queue objects support the following methods:
 Methods of Subscriber object
 ---
 
- The subscriber object uses the new subscription based API that allows it to follow multiple topics and multiple consumers are load-balanced between the subscribers automatically.
+ The subscriber object uses the new subscription based API that allows it to follow multiple topics and multiple consumers are load-balanced between the subscribers automatically. This is the preferred API.
 
 * *$subscriber* **subscribe** *?topic-list?*
 
@@ -542,9 +544,17 @@ Return the next event from the subscription as a key-value Tcl list.
 
 Set a callback function to be passed events from this subscription in the background.
 
-* *$subscriber* **offsets** *?-committed?* *topic-partition-offset-list*
+* *$subscriber* **offsets** *?-committed?* *?-timeout ms?* *topic-partition-offset-list*
 
 Return the offsets on the listed topics. There is no default. If the option "-committed" is provided, then it returns committed offsets.
+
+ *-timeout ms* For *-committed*, how long to wait for response (default 5000 ms).
+
+* *$subscriber* **watermarks** *?-cached?* *?-timeout ms?* topic partition
+
+Retern the watermarks on the selected topic. There is no default. If the option "-cached" is provided then it returns cached watermarks without hitting the server.
+
+ *-timeout ms* When not using *?-cached?*, how long to wait for response (default 5000 ms).
 
 * *$subscriber* **commit** *?-async?* *?topic-partition-offset-list?*
 

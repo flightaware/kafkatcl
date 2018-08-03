@@ -3947,7 +3947,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 			result = Tcl_NewObj();
 			Tcl_AppendObjToObj(result, Tcl_NewIntObj(low));
 			Tcl_AppendObjToObj(result, Tcl_NewIntObj(high));
-			
+
 			Tcl_SetObjResult(interp, result);
 
 			break;
