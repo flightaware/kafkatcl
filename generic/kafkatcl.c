@@ -893,7 +893,7 @@ kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 
 		listObj = Tcl_NewListObj (KAFKATCL_MESSAGE_ERROR_LIST_COUNT, listObjv);
 	} else {
-#define KAFKATCL_GOOD_MESSAGE_LIST_COUNT 10
+#define KAFKATCL_GOOD_MESSAGE_LIST_COUNT 12
 		Tcl_Obj *listObjv[KAFKATCL_GOOD_MESSAGE_LIST_COUNT];
 		int i = 0;
 
@@ -905,6 +905,13 @@ kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 
 		listObjv[i++] = Tcl_NewStringObj ("offset", -1);
 		listObjv[i++] = kafkatcl_NewOffsetObj (rdm->offset);
+
+		rd_kafka_timestamp_type_t tstype;
+		Tcl_WideInt timestamp = rd_kafka_message_timestamp(rdm, &tstype);
+		if (tstype != RD_KAFKA_TIMESTAMP_NOT_AVAILABLE) {
+			listObjv[i++] = Tcl_NewStringObj ("timestamp", -1);
+			listObjv[i++] = Tcl_NewWideIntObj (timestamp);
+		}
 
 		// include the topic name if there is a topic structure
 		if (rdm->rkt != NULL) {
