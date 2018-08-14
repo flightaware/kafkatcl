@@ -1471,7 +1471,8 @@ kafkatcl_delivery_report_eventProc (Tcl_Event *tevPtr, int flags) {
 	kafkatcl_objectClientData *ko = evPtr->ko;
 	Tcl_Interp *interp = ko->interp;
 
-	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage, evPtr->timestamp, evPtr->timestamp_type);
+	// We're not timestamping delivery report events yet, possibly later.
+	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage, 0, RD_KAFKA_TIMESTAMP_NOT_AVAILABLE);
 
 	// free the payload
 	ckfree (evPtr->rkmessage.payload);
