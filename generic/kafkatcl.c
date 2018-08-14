@@ -893,7 +893,7 @@ kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 
 		listObj = Tcl_NewListObj (KAFKATCL_MESSAGE_ERROR_LIST_COUNT, listObjv);
 	} else {
-#define KAFKATCL_GOOD_MESSAGE_LIST_COUNT 12
+#define KAFKATCL_GOOD_MESSAGE_LIST_COUNT 14
 		Tcl_Obj *listObjv[KAFKATCL_GOOD_MESSAGE_LIST_COUNT];
 		int i = 0;
 
@@ -909,6 +909,17 @@ kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 		rd_kafka_timestamp_type_t tstype;
 		Tcl_WideInt timestamp = rd_kafka_message_timestamp(rdm, &tstype);
 		if (tstype != RD_KAFKA_TIMESTAMP_NOT_AVAILABLE) {
+			listObjv[i++] = Tcl_NewStringObj ("timestamp_type", -1);
+			switch (tstype) {
+				case RD_KAFKA_TIMESTAMP_CREATE_TIME:
+					listObjv[i++] = Tcl_NewStringObj ("create_time", -1);
+					break;
+				case RD_KAFKA_TIMESTAMP_LOG_APPEND_TIME:
+					listObjv[i++] = Tcl_NewStringObj ("log_append_time", -1);
+					break;
+				default:
+					listObjv[i++] = Tcl_NewStringObj ("unknown_type", -1);
+			}
 			listObjv[i++] = Tcl_NewStringObj ("timestamp", -1);
 			listObjv[i++] = Tcl_NewWideIntObj (timestamp);
 		}
