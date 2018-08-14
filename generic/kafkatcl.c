@@ -906,10 +906,6 @@ kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm, Tcl_W
 		listObjv[i++] = Tcl_NewStringObj ("offset", -1);
 		listObjv[i++] = kafkatcl_NewOffsetObj (rdm->offset);
 
-		// TODO fix this to use passed in parameters after Karl syncs
-
-		rd_kafka_timestamp_type_t tstype;
-		Tcl_WideInt timestamp = rd_kafka_message_timestamp(rdm, &tstype);
 		if (tstype != RD_KAFKA_TIMESTAMP_NOT_AVAILABLE) {
 			listObjv[i++] = Tcl_NewStringObj ("timestamp_type", -1);
 			switch (tstype) {
