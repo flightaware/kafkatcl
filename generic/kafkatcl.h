@@ -190,6 +190,8 @@ typedef struct kafkatcl_consumeCallbackEvent
 {
     Tcl_Event event;
 	kafkatcl_runningConsumer *krc;
+	Tcl_WideInt timestamp;
+	rd_kafka_timestamp_type_t timestamp_type;
 	rd_kafka_message_t rkmessage;
 } kafkatcl_consumeCallbackEvent;
 
