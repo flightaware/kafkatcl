@@ -3969,10 +3969,10 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 			}
 
 			result = Tcl_NewObj();
-			if (Tcl_ListObjAppendElement(interp, result, Tcl_NewIntObj(low)) != TCL_OK) {
+			if (Tcl_ListObjAppendElement(interp, result, Tcl_NewWideIntObj(low)) != TCL_OK) {
 				return TCL_ERROR;
 			}
-			if (Tcl_ListObjAppendElement(interp, result, Tcl_NewIntObj(high)) != TCL_OK) {
+			if (Tcl_ListObjAppendElement(interp, result, Tcl_NewWideIntObj(high)) != TCL_OK) {
 				return TCL_ERROR;
 			}
 
