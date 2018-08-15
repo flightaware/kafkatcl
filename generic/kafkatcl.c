@@ -866,7 +866,7 @@ kafkatcl_handle_command_to_handleClientData (Tcl_Interp *interp, char *handleCom
  *--------------------------------------------------------------
  */
 Tcl_Obj *
-kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
+kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm, Tcl_WideInt timestamp, rd_kafka_timestamp_type_t tstype) {
 	Tcl_Obj *listObj;
 
 	if (rdm->err == RD_KAFKA_RESP_ERR__PARTITION_EOF) {
@@ -893,7 +893,7 @@ kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 
 		listObj = Tcl_NewListObj (KAFKATCL_MESSAGE_ERROR_LIST_COUNT, listObjv);
 	} else {
-#define KAFKATCL_GOOD_MESSAGE_LIST_COUNT 10
+#define KAFKATCL_GOOD_MESSAGE_LIST_COUNT 14
 		Tcl_Obj *listObjv[KAFKATCL_GOOD_MESSAGE_LIST_COUNT];
 		int i = 0;
 
@@ -905,6 +905,24 @@ kafkatcl_message_to_tcl_list (Tcl_Interp *interp, rd_kafka_message_t *rdm) {
 
 		listObjv[i++] = Tcl_NewStringObj ("offset", -1);
 		listObjv[i++] = kafkatcl_NewOffsetObj (rdm->offset);
+
+		if (tstype != RD_KAFKA_TIMESTAMP_NOT_AVAILABLE) {
+#ifdef TIMESTAMP_DEBUG
+			listObjv[i++] = Tcl_NewStringObj ("timestamp_type", -1);
+			switch (tstype) {
+				case RD_KAFKA_TIMESTAMP_CREATE_TIME:
+					listObjv[i++] = Tcl_NewStringObj ("create_time", -1);
+					break;
+				case RD_KAFKA_TIMESTAMP_LOG_APPEND_TIME:
+					listObjv[i++] = Tcl_NewStringObj ("log_append_time", -1);
+					break;
+				default:
+					listObjv[i++] = Tcl_NewStringObj ("unknown_type", -1);
+			}
+#endif
+			listObjv[i++] = Tcl_NewStringObj ("timestamp", -1);
+			listObjv[i++] = Tcl_NewWideIntObj (timestamp);
+		}
 
 		// include the topic name if there is a topic structure
 		if (rdm->rkt != NULL) {
@@ -1462,7 +1480,8 @@ kafkatcl_delivery_report_eventProc (Tcl_Event *tevPtr, int flags) {
 	kafkatcl_objectClientData *ko = evPtr->ko;
 	Tcl_Interp *interp = ko->interp;
 
-	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage);
+	// We're not timestamping delivery report events yet, possibly later.
+	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage, 0, RD_KAFKA_TIMESTAMP_NOT_AVAILABLE);
 
 	// free the payload
 	ckfree (evPtr->rkmessage.payload);
@@ -1841,7 +1860,7 @@ kafkatcl_consume_callback_eventProc (Tcl_Event *tevPtr, int flags) {
 
 	Tcl_Interp *interp = krc->kh->interp;
 
-	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage);
+	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage, evPtr->timestamp, evPtr->timestamp_type);
 
 	// even if this fails we still want the event taken off the queue
 	// this function will do the background error thing if there is a tcl
@@ -1888,7 +1907,7 @@ kafkatcl_consume_callback_queue_eventProc (Tcl_Event *tevPtr, int flags) {
 
 	Tcl_Interp *interp = krc->kh->interp;
 
-	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage);
+	Tcl_Obj *listObj = kafkatcl_message_to_tcl_list (interp, &evPtr->rkmessage, evPtr->timestamp, evPtr->timestamp_type);
 
 	// even if this fails we still want the event taken off the queue
 	// this function will do the background error thing if there is a tcl
@@ -1941,6 +1960,9 @@ kafkatcl_consume_callback (rd_kafka_message_t *rkmessage, void *opaque) {
 	} else {
 		evPtr->event.proc = kafkatcl_consume_callback_queue_eventProc;
 	}
+
+	// Get the timestamp if any.
+	evPtr->timestamp = rd_kafka_message_timestamp(rkmessage, &evPtr->timestamp_type);
 
 	// structure copy
 	evPtr->rkmessage = *rkmessage;
@@ -3699,7 +3721,9 @@ kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
 		return;
 
 	while((message = rd_kafka_consumer_poll(rk, 1))) {
-		Tcl_Obj *msgList = kafkatcl_message_to_tcl_list(interp, message);
+		rd_kafka_timestamp_type_t tstype;
+		Tcl_WideInt timestamp = rd_kafka_message_timestamp(message, &tstype);
+		Tcl_Obj *msgList = kafkatcl_message_to_tcl_list(interp, message, timestamp, tstype);
 
 		// We don't need this any more
 		rd_kafka_message_destroy(message);
@@ -4033,7 +4057,9 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 			rd_kafka_message_t *message = rd_kafka_consumer_poll(rk, timeoutMS);
 
 			if(message) {
-				Tcl_Obj *msgList = kafkatcl_message_to_tcl_list(interp, message);
+				rd_kafka_timestamp_type_t tstype;
+				Tcl_WideInt timestamp = rd_kafka_message_timestamp(message, &tstype);
+				Tcl_Obj *msgList = kafkatcl_message_to_tcl_list(interp, message, timestamp, tstype);
 
 				rd_kafka_message_destroy(message);
 
