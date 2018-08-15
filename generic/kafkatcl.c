@@ -2078,12 +2078,14 @@ kafkatcl_partitioner_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf,
 	static CONST char *subOptions[] = {
 		"random",
 		"consistent",
+		"consistent_random",
 		NULL
 	};
 
 	enum subOptions {
 		SUBOPT_RANDOM_PARTITIONER,
 		SUBOPT_CONSISTENT_PARTITIONER,
+		SUBOPT_CONSISTENT_RANDOM_PARTITIONER,
 	};
 
 	// argument must be one of the subOptions defined above
@@ -2100,6 +2102,11 @@ kafkatcl_partitioner_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf,
 
 		case SUBOPT_CONSISTENT_PARTITIONER: {
 			rd_kafka_topic_conf_set_partitioner_cb (topicConf, rd_kafka_msg_partitioner_consistent);
+			break;
+		}
+
+		case SUBOPT_CONSISTENT_RANDOM_PARTITIONER: {
+			rd_kafka_topic_conf_set_partitioner_cb (topicConf, rd_kafka_msg_partitioner_consistent_random);
 			break;
 		}
 
