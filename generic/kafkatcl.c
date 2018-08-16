@@ -3767,6 +3767,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 		"consume",
 		"callback",
 		"offsets",
+		"watermarks",
 		"delete",
 		NULL
 	};
@@ -3780,6 +3781,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 		OPT_CONSUME,
 		OPT_CALLBACK,
 		OPT_OFFSETS,
+		OPT_WATERMARKS,
 		OPT_DELETE
 	};
 
@@ -3914,6 +3916,68 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 				Tcl_AppendResult(interp, rd_kafka_err2str(status), NULL);
 				return TCL_ERROR;
 			}
+			break;
+		}
+
+		case OPT_WATERMARKS: {
+			int      nextOption = 2;
+			int      cached = 0;
+			Tcl_Obj *result;
+			int      timeoutMS = 5000; // default 5s timout for un-cached
+
+			while (objc > nextOption + 2) {
+				char *option = Tcl_GetString(objv[nextOption]);
+				if(strcmp(option, "-cached") == 0) {
+					nextOption++;
+					cached = 1;
+				} else if(strcmp(option, "-timeout") == 0) {
+					nextOption++;
+					if(Tcl_GetIntFromObj(interp, objv[nextOption], &timeoutMS) == TCL_ERROR) {
+						return TCL_ERROR;
+					}
+					nextOption++;
+				} else {
+					break;
+				}
+			}
+
+			if(objc - nextOption != 2) {
+				Tcl_WrongNumArgs (interp, 2, objv, "?-cached? ?-timeout ms? topic partition");
+				return TCL_ERROR;
+			}
+
+			char   *topic;
+			int32_t partition;
+
+			topic = Tcl_GetString(objv[nextOption++]);
+
+			if(Tcl_GetIntFromObj(interp, objv[nextOption], &partition) == TCL_ERROR) {
+				return TCL_ERROR;
+			}
+
+			int64_t low, high;
+			int     status;
+
+			if(cached)
+				status = rd_kafka_get_watermark_offsets(rk, topic, partition, &low, &high);
+			else
+				status = rd_kafka_query_watermark_offsets(rk, topic, partition, &low, &high, timeoutMS);
+
+			if(status != RD_KAFKA_RESP_ERR_NO_ERROR) {
+				Tcl_AppendResult(interp, rd_kafka_err2str(status), NULL);
+				return TCL_ERROR;
+			}
+
+			result = Tcl_NewObj();
+			if (Tcl_ListObjAppendElement(interp, result, Tcl_NewWideIntObj(low)) != TCL_OK) {
+				return TCL_ERROR;
+			}
+			if (Tcl_ListObjAppendElement(interp, result, Tcl_NewWideIntObj(high)) != TCL_OK) {
+				return TCL_ERROR;
+			}
+
+			Tcl_SetObjResult(interp, result);
+
 			break;
 		}
 
