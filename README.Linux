@@ -1,0 +1,8 @@
+#
+# kafkatcl configure for Linux
+#
+
+autoreconf
+./configure --with-tcl=/usr/lib/tcl8.6  ${1+"$@"}
+#--enable-symbols
+
