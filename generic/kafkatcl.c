@@ -3772,6 +3772,8 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 		"callback",
 		"offsets",
 		"watermarks",
+		"meta",
+		"info",
 		"delete",
 		NULL
 	};
@@ -3786,6 +3788,8 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 		OPT_CALLBACK,
 		OPT_OFFSETS,
 		OPT_WATERMARKS,
+		OPT_META,
+		OPT_INFO,
 		OPT_DELETE
 	};
 
@@ -4088,6 +4092,117 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 			}
 
 			return TCL_OK;
+		}
+
+		case OPT_META: {
+			int suboptIndex;
+
+			if (objc != 3) {
+				Tcl_WrongNumArgs (interp, 2, objv, "refresh|print");
+				return TCL_ERROR;
+			}
+
+			static CONST char *subOptions[] = {
+				"refresh",
+				"print",
+				NULL
+			};
+
+			enum subOptions {
+				SUBOPT_REFRESH,
+				SUBOPT_PRINT,
+			};
+
+			// argument must be one of the subOptions defined above
+			if (Tcl_GetIndexFromObj (interp, objv[2], subOptions, "suboption",
+				TCL_EXACT, &suboptIndex) != TCL_OK) {
+				return TCL_ERROR;
+			}
+
+			switch ((enum subOptions) suboptIndex) {
+				case SUBOPT_REFRESH: {
+					if (kafkatcl_refresh_metadata (kh) == TCL_ERROR) {
+						return TCL_ERROR;
+					}
+					break;
+				}
+
+				case SUBOPT_PRINT: {
+					if (kh->metadata == NULL) {
+						if (kafkatcl_refresh_metadata (kh) == TCL_ERROR) {
+							return TCL_ERROR;
+						}
+					}
+
+					metadata_print (NULL, kh->metadata);
+					break;
+				}
+			}
+			break;
+		}
+
+		case OPT_INFO: {
+			int suboptIndex;
+
+			if (objc < 3) {
+				Tcl_WrongNumArgs (interp, 2, objv, "?topics?");
+				return TCL_ERROR;
+			}
+
+			static CONST char *subOptions[] = {
+				"topics",
+				"brokers",
+				"partitions",
+				NULL
+			};
+
+			enum subOptions {
+				SUBOPT_TOPICS,
+				SUBOPT_BROKERS,
+				SUBOPT_PARTITIONS,
+			};
+
+			// argument must be one of the subOptions defined above
+			if (Tcl_GetIndexFromObj (interp, objv[2], subOptions, "suboption",
+				TCL_EXACT, &suboptIndex) != TCL_OK) {
+				return TCL_ERROR;
+			}
+
+			if (kh->metadata == NULL) {
+				if (kafkatcl_refresh_metadata (kh) == TCL_ERROR) {
+					return TCL_ERROR;
+				}
+			}
+
+			switch ((enum subOptions) suboptIndex) {
+				case SUBOPT_TOPICS: {
+					if (objc != 3) {
+						Tcl_WrongNumArgs (interp, 3, objv, "");
+						return TCL_ERROR;
+					}
+
+					return kafkatcl_meta_topic_list (kh);
+				}
+
+				case SUBOPT_BROKERS: {
+					if (objc != 3) {
+						Tcl_WrongNumArgs (interp, 3, objv, "");
+						return TCL_ERROR;
+					}
+
+					return kafkatcl_meta_broker_list (kh);
+				}
+
+				case SUBOPT_PARTITIONS: {
+					if (objc != 4) {
+						Tcl_WrongNumArgs (interp, 3, objv, "topic");
+						return TCL_ERROR;
+					}
+
+					return kafkatcl_meta_topic_partitions (kh, Tcl_GetString (objv[3]));
+				}
+			}
+			break;
 		}
 
 		case OPT_DELETE: {
