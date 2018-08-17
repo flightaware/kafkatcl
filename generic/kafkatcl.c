@@ -2530,6 +2530,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
         "start",
         "start_queue",
         "stop",
+	"creator",
         "delete",
 	"consume_start",
 	"consume_start_queue",
@@ -2544,6 +2545,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 		OPT_CONSUME_START,
 		OPT_CONSUME_START_QUEUE,
 		OPT_CONSUME_STOP,
+		OPT_CREATOR,
 		OPT_DELETE,
 		OPT_LEGACY_CONSUME_START,
 		OPT_LEGACY_CONSUME_START_QUEUE,
@@ -2668,6 +2670,10 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 				Tcl_SetObjResult (interp, Tcl_NewIntObj (gotCount));
 			}
 			break;
+		}
+
+		case OPT_CREATOR: {
+			return kafkatcl_handleObjectObjCmd(kt->kh, interp, objc-1, objv+1);
 		}
 
 		case OPT_INFO: {
@@ -2800,6 +2806,7 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
         "produce",
         "produce_batch",
 		"info",
+		"creator",
         "delete",
         NULL
     };
@@ -2808,6 +2815,7 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 		OPT_PRODUCE,
 		OPT_PRODUCE_BATCH,
 		OPT_INFO,
+		OPT_CREATOR,
 		OPT_DELETE
     };
 
@@ -2922,6 +2930,10 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 
 		  batcherr:
 			break;
+		}
+
+		case OPT_CREATOR: {
+			return kafkatcl_handleObjectObjCmd(kt->kh, interp, objc-1, objv+1);
 		}
 
 		case OPT_INFO: {
