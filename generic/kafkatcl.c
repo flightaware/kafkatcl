@@ -97,7 +97,9 @@ kafkatcl_topicObjectDelete (ClientData clientData)
 
     assert (kt->kafka_topic_magic == KAFKA_TOPIC_MAGIC);
 
-	kafkatcl_consume_stop_all_partitions (kt);
+	if (kt->kh->kafkaType == RD_KAFKA_CONSUMER) {
+		kafkatcl_consume_stop_all_partitions (kt);
+	}
 
 	rd_kafka_topic_destroy (kt->rkt);
 
@@ -108,7 +110,9 @@ kafkatcl_topicObjectDelete (ClientData clientData)
 	kt->kafka_topic_magic = 0;
 
 	// remove the topic instance from the list of topic consumers
-	KT_LIST_REMOVE (kt, topicConsumerInstance);
+	if (kt->kh->kafkaType == RD_KAFKA_CONSUMER) {
+		KT_LIST_REMOVE (kt, topicConsumerInstance);
+	}
 
     ckfree((char *)clientData);
 }
