@@ -528,7 +528,7 @@ Requests events from the named topics. Topics may be regexps if they start with 
 
 Remove the current subsciption list.
 
-* *$subscriber* **assignments**
+* *$subscriber* **assignment**
 
 List of topics and partitions assigned to this subscriber.
 
@@ -573,25 +573,17 @@ Received Kafka Messages
 
 You specify the name of the array and if there isn't an error the array is populated with the following info from the message:
 
-* payload
+* payload - The message payload.
 
- The message payload.
+* partition - The partition number.
 
-* partition
+* key - The key will be provided if the (optional) key was specified when the message was produced.
 
- The partition number.
+* offset - The offset.
 
-* key
+* topic - The name of the topic.
 
- The key will be provided if the (optional) key was specified when the message was produced.
-
-* offset
-
- The offset.
-
-* topic
-
- The name of the topic.
+* timestamp - the log timestamp (milliseconds)
 
 Setting up a consumer
 ---
