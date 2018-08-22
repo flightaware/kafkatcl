@@ -2160,13 +2160,15 @@ kafkatcl_handle_topic_info (Tcl_Interp *interp, kafkatcl_topicClientData *kt, in
 		"name",
 		"partitions",
 		"consistent_partition",
+		"output_queue_length",
 		NULL
 	};
 
 	enum subOptions {
 		SUBOPT_NAME,
 		SUBOPT_PARTITIONS,
-		SUBOPT_CONSISTENT_PARTITION
+		SUBOPT_CONSISTENT_PARTITION,
+		SUBOPT_OUTPUT_QUEUE_LENGTH
 	};
 
 	// argument must be one of the subOptions defined above
@@ -2227,6 +2229,16 @@ kafkatcl_handle_topic_info (Tcl_Interp *interp, kafkatcl_topicClientData *kt, in
 			}
 
 			Tcl_SetObjResult (interp, Tcl_NewIntObj (whichPartition));
+			break;
+		}
+
+		case SUBOPT_OUTPUT_QUEUE_LENGTH: {
+			if (objc != 3) {
+				Tcl_WrongNumArgs (interp, 3, objv, "");
+				return TCL_ERROR;
+			}
+
+			Tcl_SetObjResult (interp, Tcl_NewIntObj (rd_kafka_outq_len (kh->rk)));
 			break;
 		}
 	}
