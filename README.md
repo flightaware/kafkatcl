@@ -415,6 +415,8 @@ Methods of kafka topic consumer object
 
   * key  - the partitioner key that was specified, if one was specified.
 
+  * timestamp - the timestamp (ms granularity) it was written to the log
+
  If an error is encountered the message will contain:
 
   * error - the kafka error string returned by *rd_kafka_err2str*
@@ -452,6 +454,8 @@ Methods of kafka topic consumer object
   * topic - the name of the topic the message was received from
 
   * key  - the partitioner key that was specified, if one was specified.
+
+  * timestamp - the timestamp (ms granularity) it was written to the log
 
 * *$topic* **consume_batch** *partition* *timeout* *count* *array* *code*
 
