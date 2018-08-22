@@ -25,6 +25,9 @@ kafkatcl_subscriber_poll(kafkatcl_handleClientData *kh);
 void
 kafkatcl_consume_stop_all_partitions (kafkatcl_topicClientData *kt);
 
+int
+kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]);
+
 // DEBUG
 #ifdef DEBUGPRINTF
 void kafkatcl_dump_topic_partition_list(rd_kafka_topic_partition_list_t *topics)
