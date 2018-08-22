@@ -467,7 +467,7 @@ Methods of kafka topic consumer object
 
  This method returns number of rows processed, 0 if the end of the partition is reached.
 
-* *$topic* **info** **topic**
+* *$topic* **info** **name**
 
 Return the name of the topic.
 
