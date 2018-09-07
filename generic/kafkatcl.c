@@ -3738,6 +3738,7 @@ kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
 		if(!msgList) 
 			break;
 
+		// Note - this increments and decrements the refcount on msgList.
 		kafkatcl_invoke_callback_with_argument (interp, kh->subscriberCallback, msgList);
 	}
 }
