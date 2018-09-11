@@ -4386,8 +4386,12 @@ kafkatcl_createSubscriberObjectCommand (kafkatcl_objectClientData *ko, char *cmd
 		return TCL_ERROR;
 	}
 
-	// Need to do this OR call rd_kafka_poll() periodically.
-	rd_kafka_poll_set_consumer(rk);
+	// After this do not call rd_kafka_poll(), call rd_kafka_consumer_poll() instead
+	if(rd_kafka_poll_set_consumer(rk) != RD_KAFKA_RESP_ERR_NO_ERROR) {
+		// Only possible error is RD_KAFKA_RESP_ERR__UNKNOWN_GROUP
+		Tcl_SetObjResult (interp, Tcl_NewStringObj("Unexpected failure from rd_kafka_poll_set_consumer", -1));
+		return TCL_ERROR;
+	}
 
 	// finished kafka setup, save state
 
