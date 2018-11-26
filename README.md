@@ -572,6 +572,18 @@ The offset is required for "commit", and may be left out or set to zero for assi
 
 The partition is required for "assign", but shoudl be left out or set to zero for subscribe.
 
+* *$subscriber* **meta** **refresh**
+
+Refresh metadata from server.
+
+* *$subscriber* **meta** **print**
+
+Print metadata for debugging.
+
+* *$subscriber* **info** *subcommand*
+
+Subcommand may be *topics*, *partitions*, or *brokers*.
+
 Received Kafka Messages
 ---
 
