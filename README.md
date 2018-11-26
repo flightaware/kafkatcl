@@ -415,6 +415,8 @@ Methods of kafka topic consumer object
 
   * key  - the partitioner key that was specified, if one was specified.
 
+  * timestamp - the timestamp (ms granularity) it was written to the log
+
  If an error is encountered the message will contain:
 
   * error - the kafka error string returned by *rd_kafka_err2str*
@@ -453,6 +455,8 @@ Methods of kafka topic consumer object
 
   * key  - the partitioner key that was specified, if one was specified.
 
+  * timestamp - the timestamp (ms granularity) it was written to the log
+
 * *$topic* **consume_batch** *partition* *timeout* *count* *array* *code*
 
  Consume up to *count* messages or however many have come in less than that within *timeout* milliseconds.
@@ -463,7 +467,7 @@ Methods of kafka topic consumer object
 
  This method returns number of rows processed, 0 if the end of the partition is reached.
 
-* *$topic* **info** **topic**
+* *$topic* **info** **name**
 
 Return the name of the topic.
 
@@ -528,7 +532,7 @@ Requests events from the named topics. Topics may be regexps if they start with 
 
 Remove the current subsciption list.
 
-* *$subscriber* **assignments**
+* *$subscriber* **assignment**
 
 List of topics and partitions assigned to this subscriber.
 
@@ -573,25 +577,17 @@ Received Kafka Messages
 
 You specify the name of the array and if there isn't an error the array is populated with the following info from the message:
 
-* payload
+* payload - The message payload.
 
- The message payload.
+* partition - The partition number.
 
-* partition
+* key - The key will be provided if the (optional) key was specified when the message was produced.
 
- The partition number.
+* offset - The offset.
 
-* key
+* topic - The name of the topic.
 
- The key will be provided if the (optional) key was specified when the message was produced.
-
-* offset
-
- The offset.
-
-* topic
-
- The name of the topic.
+* timestamp - the log timestamp (milliseconds)
 
 Setting up a consumer
 ---

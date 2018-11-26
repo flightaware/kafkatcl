@@ -3743,15 +3743,12 @@ kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
 	rd_kafka_message_t *message;
 	Tcl_Interp *interp = kh->interp;
 
-        // polling with timeoutMS of 0 is nonblocking, which is ideal
-	// DON'T do this if you called rd_kafka_poll_set_consumer()
-        //rd_kafka_poll (kh->rk, 0);
-
 	// If we don't have a subscriber callback, leave subscriber messages alone.
+	// User must then explicitly read messages (via subscriber consume) frequently!
 	if(!kh->subscriberCallback)
 		return;
 
-	while((message = rd_kafka_consumer_poll(rk, 1))) {
+	while((message = rd_kafka_consumer_poll(rk, 0))) {
 		rd_kafka_timestamp_type_t tstype;
 		Tcl_WideInt timestamp = rd_kafka_message_timestamp(message, &tstype);
 		Tcl_Obj *msgList = kafkatcl_message_to_tcl_list(interp, message, timestamp, tstype);
@@ -3759,13 +3756,10 @@ kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
 		// We don't need this any more
 		rd_kafka_message_destroy(message);
 
-// fprintf(stderr, "%08lx: %s\n", (long)message, Tcl_GetString(msgList));
-
-		// Null message list means EOF
-		if(!msgList) 
-			break;
-
-		kafkatcl_invoke_callback_with_argument (interp, kh->subscriberCallback, msgList);
+		if(msgList) {
+			// Note - this increments and decrements the refcount on msgList.
+			kafkatcl_invoke_callback_with_argument (interp, kh->subscriberCallback, msgList);
+		}
 	}
 }
 
@@ -4419,8 +4413,12 @@ kafkatcl_createSubscriberObjectCommand (kafkatcl_objectClientData *ko, char *cmd
 		return TCL_ERROR;
 	}
 
-	// Need to do this OR call rd_kafka_poll() periodically.
-	rd_kafka_poll_set_consumer(rk);
+	// After this do not call rd_kafka_poll(), call rd_kafka_consumer_poll() instead
+	if(rd_kafka_poll_set_consumer(rk) != RD_KAFKA_RESP_ERR_NO_ERROR) {
+		// Only possible error is RD_KAFKA_RESP_ERR__UNKNOWN_GROUP
+		Tcl_SetObjResult (interp, Tcl_NewStringObj("Unexpected failure from rd_kafka_poll_set_consumer", -1));
+		return TCL_ERROR;
+	}
 
 	// finished kafka setup, save state
 
