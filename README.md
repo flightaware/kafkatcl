@@ -388,6 +388,10 @@ Return the partition number that the Kafka consistent partitioner will return fo
 
 If zero partitions are defined, which can occur during topic creation, **info consistent_partition** will return -1.
 
+* *$topic* **creator** **command-and-args**
+
+Pass a command to the creator of this topic.
+
 * *$topic* **delete**
 
  Delete the producer object, destroying the command.
@@ -480,6 +484,10 @@ Return the number of partitions defined for the topic.
 Return the partition number that the Kafka consistent partitioner will return for the given key for the number of partitions defined for the topic.
 
 If zero partitions are defined, which can occur during topic creation, **info consistent_partition** will return -1.
+
+* *$topic* **creator** **command-and-args**
+
+Pass a command to the creator of this topic.
 
 * *$topic* **delete**
 
