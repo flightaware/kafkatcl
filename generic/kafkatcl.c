@@ -1189,8 +1189,10 @@ void
 kafkatcl_EventCheckProc (ClientData clientData, int flags) {
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)clientData;
 
+    assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
+
 	// polling with timeoutMS of 0 is nonblocking, which is ideal
-	rd_kafka_poll (kh->rk, 0);
+	rd_kafka_consumer_poll (kh->rk, 0);
 	kafkatcl_check_consumer_callbacks (kh->ko);
 }
 
@@ -2181,6 +2183,7 @@ kafkatcl_handle_topic_info (Tcl_Interp *interp, kafkatcl_topicClientData *kt, in
 	}
 
 	kafkatcl_handleClientData *kh = kt->kh;
+    assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
 
 	if (kh->metadata == NULL) {
 		if (kafkatcl_refresh_metadata (kh) == TCL_ERROR) {
@@ -3296,6 +3299,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 {
     int         optIndex;
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)cData;
+    assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
 	rd_kafka_t *rk = kh->rk;
 	int resultCode = TCL_OK;
 
@@ -3739,6 +3743,7 @@ kafkatcl_set_subscriber_callback(Tcl_Interp *interp, kafkatcl_handleClientData *
 void
 kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)clientData;
+    assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
 	rd_kafka_t *rk = kh->rk;
 	rd_kafka_message_t *message;
 	Tcl_Interp *interp = kh->interp;
@@ -3780,6 +3785,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 {
 	int                        optIndex;
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)cData;
+    assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
 	rd_kafka_t                *rk = kh->rk;
 	int                        resultCode = TCL_OK;
 
@@ -4282,7 +4288,6 @@ kafkatcl_createHandleObjectCommand (kafkatcl_objectClientData *ko, char *cmdName
 
 	// allocate one of our kafka handle client data objects for Tcl and
 	// configure it
-	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)ckalloc (sizeof (kafkatcl_handleClientData));
 	Tcl_Interp *interp = ko->interp;
 
 	// rd_kafka_new consumes its conf object so give it one because
@@ -4297,6 +4302,7 @@ kafkatcl_createHandleObjectCommand (kafkatcl_objectClientData *ko, char *cmdName
 		return TCL_ERROR;
 	}
 
+	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)ckalloc (sizeof (kafkatcl_handleClientData));
 	kh->kafka_handle_magic = KAFKA_HANDLE_MAGIC;
 	kh->interp = interp;
 	kh->rk = rk;
@@ -4382,7 +4388,6 @@ kafkatcl_createSubscriberObjectCommand (kafkatcl_objectClientData *ko, char *cmd
 
 	// allocate one of our kafka handle client data objects for Tcl and
 	// configure it - TODO - make sure this is will work and that we don't need a new clientData type
-	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)ckalloc (sizeof (kafkatcl_handleClientData));
 	Tcl_Interp *interp = ko->interp;
 
 	// start kafka setup
@@ -4422,6 +4427,7 @@ kafkatcl_createSubscriberObjectCommand (kafkatcl_objectClientData *ko, char *cmd
 
 	// finished kafka setup, save state
 
+	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)ckalloc (sizeof (kafkatcl_handleClientData));
 	kh->kafka_handle_magic = KAFKA_HANDLE_MAGIC;
 	kh->interp = interp;
 	kh->rk = rk;
