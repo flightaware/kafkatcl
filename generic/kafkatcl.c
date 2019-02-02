@@ -28,6 +28,13 @@ kafkatcl_consume_stop_all_partitions (kafkatcl_topicClientData *kt);
 int
 kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]);
 
+void
+kafkatcl_EventSetupProc (ClientData clientData, int flags);
+void
+kafkatcl_EventCheckProc (ClientData clientData, int flags);
+void
+kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags);
+
 // DEBUG
 #ifdef DEBUGPRINTF
 void kafkatcl_dump_topic_partition_list(rd_kafka_topic_partition_list_t *topics)
@@ -157,6 +164,9 @@ kafkatcl_handleObjectDelete (ClientData clientData)
 
 	rd_kafka_topic_conf_destroy (kh->topicConf);
 
+	// Stop passing this to Tcl event handlers
+        Tcl_DeleteEventSource (kafkatcl_EventSetupProc, kafkatcl_EventCheckProc, (ClientData) kh);
+
     ckfree((char *)clientData);
 }
 
@@ -235,6 +245,9 @@ kafkatcl_subscriberObjectDelete (ClientData clientData)
 	if (kh->topicConf != NULL) {
 		rd_kafka_topic_conf_destroy (kh->topicConf);
 	}
+
+	// Stop passing Tcl events to this object
+        Tcl_DeleteEventSource (kafkatcl_EventSetupProc, kafkatcl_SubscriberEventCheckProc, (ClientData) kh);
 
 	// clear the kafka handle magic number; this will help us catch
 	// attempted reuse of the structure after freeing
@@ -1117,6 +1130,8 @@ kafkatcl_invoke_callback_with_argument (Tcl_Interp *interp, Tcl_Obj *callbackObj
 		Tcl_AppendResult (interp, " while converting callback argument", NULL);
 		return TCL_ERROR;
 	}
+fprintf(stderr, "kafkatcl_invoke_callback_with_argument(interp, callbackObj={%s}, argumentObj={%s});\n",
+		Tcl_GetString(callbackObj), Tcl_GetString(argumentObj));
 
 	evalObjc = callbackListObjc + 1;
 	evalObjv = (Tcl_Obj **)ckalloc (sizeof (Tcl_Obj *) * evalObjc);
@@ -1188,6 +1203,7 @@ kafkatcl_EventSetupProc (ClientData clientData, int flags) {
 void
 kafkatcl_EventCheckProc (ClientData clientData, int flags) {
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)clientData;
+fprintf(stderr, "kafkatcl_EventCheckProc (ClientData clientData=0x%08lx, int flags=%d);\n", (long)clientData, flags);
 
     assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
 
@@ -3743,6 +3759,7 @@ kafkatcl_set_subscriber_callback(Tcl_Interp *interp, kafkatcl_handleClientData *
 void
 kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)clientData;
+fprintf(stderr, "kafkatcl_SubscriberEventCheckProc (ClientData clientData=0x%08lx, int flags=%d);\n", (long)clientData, flags);
     assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
 	rd_kafka_t *rk = kh->rk;
 	rd_kafka_message_t *message;
