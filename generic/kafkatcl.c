@@ -228,13 +228,19 @@ void
 kafkatcl_subscriberObjectDelete (ClientData clientData)
 {
     kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)clientData;
-//fprintf(stderr, "kafkatcl_subscriberObjectDelete(clientData = 0x%08lx);\n", (long)clientData);
 
     assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
+
+	// Clean up embedded Tcl objects
+	if(kh->subscriberCallback)
+		Tcl_DecrRefCount(kh->subscriberCallback);
+	kh->subscriberCallback = NULL;
 
 	// Stop passing Tcl events to this object
         Tcl_DeleteEventSource (kafkatcl_EventSetupProc, kafkatcl_SubscriberEventCheckProc, (ClientData) kh);
 
+	// Clen up topic and metadata before destroying subscriber
+	// (see https://github.com/edenhill/librdkafka/wiki/Proper-termination-sequence )
 	if (kh->topicConf != NULL) {
 		rd_kafka_topic_conf_destroy (kh->topicConf);
 	}
@@ -1131,8 +1137,6 @@ kafkatcl_invoke_callback_with_argument (Tcl_Interp *interp, Tcl_Obj *callbackObj
 		Tcl_AppendResult (interp, " while converting callback argument", NULL);
 		return TCL_ERROR;
 	}
-//fprintf(stderr, "kafkatcl_invoke_callback_with_argument(interp, callbackObj={%s}, argumentObj={%s});\n",
-//		Tcl_GetString(callbackObj), Tcl_GetString(argumentObj));
 
 	evalObjc = callbackListObjc + 1;
 	evalObjv = (Tcl_Obj **)ckalloc (sizeof (Tcl_Obj *) * evalObjc);
@@ -1204,7 +1208,6 @@ kafkatcl_EventSetupProc (ClientData clientData, int flags) {
 void
 kafkatcl_EventCheckProc (ClientData clientData, int flags) {
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)clientData;
-//fprintf(stderr, "kafkatcl_EventCheckProc (ClientData clientData=0x%08lx, int flags=%d);\n", (long)clientData, flags);
 
     assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
 
@@ -3760,7 +3763,7 @@ kafkatcl_set_subscriber_callback(Tcl_Interp *interp, kafkatcl_handleClientData *
 void
 kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)clientData;
-//fprintf(stderr, "kafkatcl_SubscriberEventCheckProc (ClientData clientData=0x%08lx, int flags=%d);\n", (long)clientData, flags);
+fprintf(stderr, "-> kafkatcl_SubscriberEventCheckProc(clientData = 0x%8lx, flags=%d);\n", (long)clientData, flags);
     assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
 	rd_kafka_t *rk = kh->rk;
 	rd_kafka_message_t *message;
@@ -3771,6 +3774,9 @@ kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
 	if(!kh->subscriberCallback)
 		return;
 
+	Tcl_Obj *cb = kh->subscriberCallback;
+	Tcl_IncrRefCount(cb); // Save it from being deleted if the hadle is deleted in the callback
+
 	while((message = rd_kafka_consumer_poll(rk, 0))) {
 		rd_kafka_timestamp_type_t tstype;
 		Tcl_WideInt timestamp = rd_kafka_message_timestamp(message, &tstype);
@@ -3780,10 +3786,15 @@ kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
 		rd_kafka_message_destroy(message);
 
 		if(msgList) {
+			fprintf(stderr, "\tInvoking callback '%s' '%s'\n", Tcl_GetString(cb), Tcl_GetString(msgList));
 			// Note - this increments and decrements the refcount on msgList.
-			kafkatcl_invoke_callback_with_argument (interp, kh->subscriberCallback, msgList);
+			kafkatcl_invoke_callback_with_argument (interp, cb, msgList);
 		}
 	}
+
+fprintf(stderr, "<- kafkatcl_SubscriberEventCheckProc();\n");
+	// Stake undead callbacks.
+	Tcl_DecrRefCount(cb);
 }
 
 /*
@@ -4405,7 +4416,7 @@ kafkatcl_createSubscriberObjectCommand (kafkatcl_objectClientData *ko, char *cmd
 	char errStr[256];
 
 	// allocate one of our kafka handle client data objects for Tcl and
-	// configure it - TODO - make sure this is will work and that we don't need a new clientData type
+	// configure it
 	Tcl_Interp *interp = ko->interp;
 
 	// start kafka setup
