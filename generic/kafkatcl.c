@@ -1132,7 +1132,7 @@ kafkatcl_invoke_callback_with_argument (Tcl_Interp *interp, Tcl_Obj *callbackObj
 		return TCL_ERROR;
 	}
 //fprintf(stderr, "kafkatcl_invoke_callback_with_argument(interp, callbackObj={%s}, argumentObj={%s});\n",
-		Tcl_GetString(callbackObj), Tcl_GetString(argumentObj));
+//		Tcl_GetString(callbackObj), Tcl_GetString(argumentObj));
 
 	evalObjc = callbackListObjc + 1;
 	evalObjv = (Tcl_Obj **)ckalloc (sizeof (Tcl_Obj *) * evalObjc);
