@@ -165,7 +165,7 @@ kafkatcl_handleObjectDelete (ClientData clientData)
 	rd_kafka_topic_conf_destroy (kh->topicConf);
 
 	// Stop passing this to Tcl event handlers
-        Tcl_DeleteEventSource (kafkatcl_EventSetupProc, kafkatcl_EventCheckProc, (ClientData) kh);
+        //Tcl_DeleteEventSource (kafkatcl_EventSetupProc, kafkatcl_EventCheckProc, (ClientData) kh);
 
     ckfree((char *)clientData);
 }
@@ -237,7 +237,7 @@ kafkatcl_subscriberObjectDelete (ClientData clientData)
 	kh->subscriberCallback = NULL;
 
 	// Stop passing Tcl events to this object
-        Tcl_DeleteEventSource (kafkatcl_EventSetupProc, kafkatcl_SubscriberEventCheckProc, (ClientData) kh);
+        //Tcl_DeleteEventSource (kafkatcl_EventSetupProc, kafkatcl_SubscriberEventCheckProc, (ClientData) kh);
 
 	// Clen up topic and metadata before destroying subscriber
 	// (see https://github.com/edenhill/librdkafka/wiki/Proper-termination-sequence )
