@@ -1128,6 +1128,9 @@ kafkatcl_invoke_callback_with_argument (Tcl_Interp *interp, Tcl_Obj *callbackObj
 	Tcl_Obj **callbackListObjv;
 	int tclReturnCode;
 
+fprintf(stderr, "-->kafkatcl_invoke_callback_with_argument(interp, callbackObj='%s', argumentObj='%s');\n",
+		Tcl_GetString(callbackObj), Tcl_GetString(argumentObj));
+
 	int evalObjc;
 	Tcl_Obj **evalObjv;
 
@@ -1164,6 +1167,9 @@ kafkatcl_invoke_callback_with_argument (Tcl_Interp *interp, Tcl_Obj *callbackObj
 	}
 
 	ckfree ((char *)evalObjv);
+
+fprintf(stderr, "<--kafkatcl_invoke_callback_with_argument()\n");
+
 	return tclReturnCode;
 }
 
@@ -1236,6 +1242,7 @@ kafkatcl_logging_eventProc (Tcl_Event *tevPtr, int flags) {
 	// our kafkatcl_loggingEvent structure that has the Tcl_Event and
 	// some other stuff that we need.
 	// Go get that.
+fprintf(stderr, "-->kafkatcl_logging_eventProc\n");
 
 	kafkatcl_loggingEvent *evPtr = (kafkatcl_loggingEvent *)tevPtr;
 	Tcl_Interp *interp = evPtr->interp;
@@ -1276,6 +1283,7 @@ kafkatcl_logging_eventProc (Tcl_Event *tevPtr, int flags) {
 	kafkatcl_invoke_callback_with_argument (interp, kafkatcl_loggingCallbackObj, listObj);
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
 	// it and don't want it removed from the queue
+fprintf(stderr, "<--kafkatcl_logging_eventProc\n");
 	return 1;
 }
 
@@ -1299,6 +1307,7 @@ kafkatcl_stats_eventProc (Tcl_Event *tevPtr, int flags) {
 	// our kafkatcl_statsEvent structure that has the Tcl_Event and
 	// some other stuff that we need.
 	// Go get that.
+fprintf(stderr, "-->kafkatcl_stats_eventProc\n");
 
 	kafkatcl_statsEvent *evPtr = (kafkatcl_statsEvent *)tevPtr;
 	kafkatcl_objectClientData *ko = evPtr->ko;
@@ -1314,6 +1323,7 @@ kafkatcl_stats_eventProc (Tcl_Event *tevPtr, int flags) {
 	free (evPtr->json);
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
 	// it and don't want it removed from the queue
+fprintf(stderr, "<--kafkatcl_stats_eventProc\n");
 	return 1;
 }
 
@@ -1337,6 +1347,7 @@ kafkatcl_error_eventProc (Tcl_Event *tevPtr, int flags) {
 	// our kafkatcl_errorEvent structure that has the Tcl_Event and
 	// some other stuff that we need.
 	// Go get that.
+fprintf(stderr, "-->kafkatcl_error_eventProc;\n");
 
 	kafkatcl_errorEvent *evPtr = (kafkatcl_errorEvent *)tevPtr;
 	kafkatcl_objectClientData *ko = evPtr->ko;
@@ -1378,7 +1389,8 @@ kafkatcl_error_eventProc (Tcl_Event *tevPtr, int flags) {
 	kafkatcl_invoke_callback_with_argument (interp, ko->errorCallbackObj, listObj);
 
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
-	// it and don't want it removed from the queue
+// it and don't want it removed from the queue
+fprintf(stderr, "<--kafkatcl_error_eventProc;\n");
 	return 1;
 }
 
@@ -1499,6 +1511,7 @@ int kafkatcl_stats_callback (rd_kafka_t *rk, char  *json, size_t jsonLen, void *
  */
 int
 kafkatcl_delivery_report_eventProc (Tcl_Event *tevPtr, int flags) {
+fprintf(stderr, "-->kafkatcl_delivery_report_eventProc;\n");
 
 	// we got called with a Tcl_Event pointer but really it's a pointer to
 	// our kafkatcl_statsEvent structure that has the Tcl_Event and
@@ -1527,6 +1540,7 @@ kafkatcl_delivery_report_eventProc (Tcl_Event *tevPtr, int flags) {
 
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
 	// it and don't want it removed from the queue
+fprintf(stderr, "<--kafkatcl_delivery_report_eventProc;\n");
 	return 1;
 }
 
@@ -2556,6 +2570,7 @@ kafkatcl_check_consumer_callbacks (kafkatcl_objectClientData *ko) {
 int
 kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 {
+fprintf(stderr, "kafkatcl_topicConsumerObjectObjCmd\n");
     int         optIndex;
 	kafkatcl_topicClientData *kt = (kafkatcl_topicClientData *)cData;
 	rd_kafka_topic_t *rkt = kt->rkt;
@@ -2835,6 +2850,7 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 int
 kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 {
+fprintf(stderr, "kafkatcl_topicProducerObjectObjCmd\n");
     int         optIndex;
 	kafkatcl_topicClientData *kt = (kafkatcl_topicClientData *)cData;
 	rd_kafka_topic_t *rkt = kt->rkt;
@@ -3089,6 +3105,7 @@ kafkatcl_createTopicObjectCommand (kafkatcl_handleClientData *kh, char *cmdName,
 int
 kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 {
+fprintf(stderr, "kafkatcl_queueObjectObjCmd\n");
     int         optIndex;
 	kafkatcl_queueClientData *kq = (kafkatcl_queueClientData *)cData;
 	rd_kafka_queue_t *rkqu = kq->rkqu;
@@ -3317,6 +3334,7 @@ kafkatcl_add_brokers (kafkatcl_handleClientData *kh, Tcl_Obj *brokers) {
 int
 kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 {
+fprintf(stderr, "kafkatcl_handleObjectObjCmd\n");
     int         optIndex;
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)cData;
     assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
@@ -3812,6 +3830,7 @@ fprintf(stderr, "<- kafkatcl_SubscriberEventCheckProc();\n");
 int
 kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 {
+fprintf(stderr, "kafkatcl_handleSubscriberObjectObjCmd\n");
 	int                        optIndex;
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)cData;
     assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
@@ -4507,6 +4526,7 @@ kafkatcl_createSubscriberObjectCommand (kafkatcl_objectClientData *ko, char *cmd
 int
 kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 {
+fprintf(stderr, "kafkatcl_kafkaObjectObjCmd\n");
 	int         optIndex;
 	kafkatcl_objectClientData *ko = (kafkatcl_objectClientData *)cData;
 	int resultCode = TCL_OK;
@@ -4859,10 +4879,13 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 int
 kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
 {
+fprintf(stderr, "kafkatcl_kafkaObjCmd\n");
     kafkatcl_objectClientData *ko;
     int                 optIndex;
     char               *cmdName;
     int                 autoGeneratedName;
+
+fprintf(stderr, "kafkatcl_kafkaObjCmd\n");
 
     static CONST char *options[] = {
         "create",
@@ -4960,6 +4983,4 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 }
 
 /* vim: set ts=4 sw=4 sts=4 noet : */
-
-
 
