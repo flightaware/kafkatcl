@@ -3792,6 +3792,8 @@ fprintf(stderr, "-> kafkatcl_SubscriberEventCheckProc(clientData = 0x%8lx, flags
 	if(!kh->subscriberCallback)
 		return;
 
+	kh->inCallback = 1;
+
 	Tcl_Obj *cb = kh->subscriberCallback;
 	Tcl_IncrRefCount(cb); // Save it from being deleted if the hadle is deleted in the callback
 
@@ -3809,6 +3811,8 @@ fprintf(stderr, "-> kafkatcl_SubscriberEventCheckProc(clientData = 0x%8lx, flags
 			kafkatcl_invoke_callback_with_argument (interp, cb, msgList);
 		}
 	}
+
+	kh->inCallback = 0;
 
 fprintf(stderr, "<- kafkatcl_SubscriberEventCheckProc();\n");
 	// Stake undead callbacks.
@@ -4283,6 +4287,11 @@ fprintf(stderr, "kafkatcl_handleSubscriberObjectObjCmd\n");
 		case OPT_DELETE: {
 			if (objc != 2) {
 				Tcl_WrongNumArgs (interp, 2, objv, "");
+				return TCL_ERROR;
+			}
+
+			if(kh->inCallback) {
+				Tcl_SetObjResult (interp, Tcl_NewStringObj ("Can not delete Subecriber from inside subscriber callback", -1));
 				return TCL_ERROR;
 			}
 
