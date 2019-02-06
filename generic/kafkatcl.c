@@ -3834,6 +3834,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 		"meta",
 		"info",
 		"delete",
+		"error",
 		NULL
 	};
 
@@ -3849,7 +3850,8 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 		OPT_WATERMARKS,
 		OPT_META,
 		OPT_INFO,
-		OPT_DELETE
+		OPT_DELETE,
+		OPT_ERROR
 	};
 
 	/* basic validation of command line arguments */
@@ -4281,6 +4283,18 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 			break;
 		}
 
+		case OPT_ERROR: {
+			if (objc != 4) {
+				Tcl_WrongNumArgs(interp, 2, objv, "errno reason");
+				return TCL_ERROR;
+			}
+
+			if (Tcl_GetIntFromObj (interp, objv[2], &errno) == TCL_ERROR) {
+				return TCL_ERROR;
+			}
+
+			kafkatcl_error_callback(rk, errno, Tcl_GetString(objv[3]), (void *)(kh->ko));
+		}
     }
     return resultCode;
 }
