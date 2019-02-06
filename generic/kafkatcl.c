@@ -1524,7 +1524,9 @@ kafkatcl_delivery_report_eventProc (Tcl_Event *tevPtr, int flags) {
 	// even if this fails we still want the event taken off the queue
 	// this function will do the background error thing if there is a tcl
 	// error running the callback
-	kafkatcl_invoke_callback_with_argument (interp, ko->deliveryReportCallbackObj, listObj);
+	if(listObj) {
+		kafkatcl_invoke_callback_with_argument (interp, ko->deliveryReportCallbackObj, listObj);
+	}
 
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
 	// it and don't want it removed from the queue
@@ -1886,7 +1888,7 @@ kafkatcl_consume_callback_eventProc (Tcl_Event *tevPtr, int flags) {
 	kafkatcl_consumeCallbackEvent *evPtr = (kafkatcl_consumeCallbackEvent *)tevPtr;
 	kafkatcl_runningConsumer *krc = evPtr->krc;
 
-    assert (krc->kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
+	assert (krc->kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
 
 	Tcl_Interp *interp = krc->kh->interp;
 
@@ -1933,7 +1935,7 @@ kafkatcl_consume_callback_queue_eventProc (Tcl_Event *tevPtr, int flags) {
 	kafkatcl_consumeCallbackEvent *evPtr = (kafkatcl_consumeCallbackEvent *)tevPtr;
 	kafkatcl_runningConsumer *krc = evPtr->krc;
 
-    assert (krc->kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
+	assert (krc->kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
 
 	Tcl_Interp *interp = krc->kh->interp;
 
