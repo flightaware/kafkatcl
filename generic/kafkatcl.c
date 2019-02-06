@@ -4271,7 +4271,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 			}
 
 			if(kh->inCallback) {
-				Tcl_SetObjResult (interp, Tcl_NewStringObj ("Can not delete Subecriber from inside subscriber callback", -1));
+				Tcl_SetObjResult (interp, Tcl_NewStringObj ("Can not delete Subscriber from inside subscriber callback", -1));
 				return TCL_ERROR;
 			}
 
