@@ -3788,7 +3788,6 @@ kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
 		rd_kafka_message_destroy(message);
 
 		if(msgList) {
-			fprintf(stderr, "\tInvoking callback '%s' '%s'\n", Tcl_GetString(cb), Tcl_GetString(msgList));
 			// Note - this increments and decrements the refcount on msgList.
 			kafkatcl_invoke_callback_with_argument (interp, cb, msgList);
 		}
