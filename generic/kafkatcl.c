@@ -165,7 +165,7 @@ kafkatcl_handleObjectDelete (ClientData clientData)
 	rd_kafka_topic_conf_destroy (kh->topicConf);
 
 	// Stop passing this to Tcl event handlers
-        //Tcl_DeleteEventSource (kafkatcl_EventSetupProc, kafkatcl_EventCheckProc, (ClientData) kh);
+        Tcl_DeleteEventSource (kafkatcl_EventSetupProc, kafkatcl_EventCheckProc, (ClientData) kh);
 
     ckfree((char *)clientData);
 }
@@ -237,7 +237,7 @@ kafkatcl_subscriberObjectDelete (ClientData clientData)
 	kh->subscriberCallback = NULL;
 
 	// Stop passing Tcl events to this object
-        //Tcl_DeleteEventSource (kafkatcl_EventSetupProc, kafkatcl_SubscriberEventCheckProc, (ClientData) kh);
+        Tcl_DeleteEventSource (kafkatcl_EventSetupProc, kafkatcl_SubscriberEventCheckProc, (ClientData) kh);
 
 	// Clen up topic and metadata before destroying subscriber
 	// (see https://github.com/edenhill/librdkafka/wiki/Proper-termination-sequence )
@@ -4299,7 +4299,7 @@ fprintf(stderr, "kafkatcl_handleSubscriberObjectObjCmd\n");
 /*
  *----------------------------------------------------------------------
  *
- * kafkatcl_kafkatcl_generateHandleCommandName --
+ * kafkatcl_generateHandleCommandName --
  *
  *    Generate a unique name for a Tcl command.
  * Results:
@@ -4314,6 +4314,33 @@ char *kafkatcl_generateHandleCommandName()
 	char *cmdName = ckalloc (baseNameLength);
 	snprintf (cmdName, baseNameLength, HANDLE_STRING_FORMAT, nextAutoCounter++);
 	return cmdName;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_createHandle --
+ *
+ *	A utility function to allocate and initialize all elements of a kafkatcl_handleClientData structure.
+ *
+ *----------------------------------------------------------------------
+ */
+kafkatcl_handleClientData *kafkatcl_createHandle(kafkatcl_objectClientData *ko, rd_kafka_t *rk, rd_kafka_type_t kafkaType)
+{
+	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)ckalloc (sizeof (kafkatcl_handleClientData));
+
+	kh->kafka_handle_magic = KAFKA_HANDLE_MAGIC;
+	kh->interp = ko->interp;
+	kh->rk = rk;
+	kh->ko = ko;
+	kh->kafkaType = kafkaType;
+	kh->threadId = Tcl_GetCurrentThread ();
+	kh->metadata = NULL;
+	kh->topicConf = NULL;
+	kh->subscriberCallback = NULL;
+	kh->inCallback = 0;
+
+	return kh;
 }
 
 /*
@@ -4350,14 +4377,7 @@ kafkatcl_createHandleObjectCommand (kafkatcl_objectClientData *ko, char *cmdName
 		return TCL_ERROR;
 	}
 
-	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)ckalloc (sizeof (kafkatcl_handleClientData));
-	kh->kafka_handle_magic = KAFKA_HANDLE_MAGIC;
-	kh->interp = interp;
-	kh->rk = rk;
-	kh->ko = ko;
-	kh->kafkaType = kafkaType;
-	kh->threadId = Tcl_GetCurrentThread ();
-	kh->metadata = NULL;
+	kafkatcl_handleClientData *kh = kafkatcl_createHandle(ko, rk, kafkaType);
 	kh->topicConf = rd_kafka_topic_conf_dup (ko->topicConf);
 
 	Tcl_CreateEventSource (kafkatcl_EventSetupProc, kafkatcl_EventCheckProc, (ClientData) kh);
@@ -4474,17 +4494,7 @@ kafkatcl_createSubscriberObjectCommand (kafkatcl_objectClientData *ko, char *cmd
 	}
 
 	// finished kafka setup, save state
-
-	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)ckalloc (sizeof (kafkatcl_handleClientData));
-	kh->kafka_handle_magic = KAFKA_HANDLE_MAGIC;
-	kh->interp = interp;
-	kh->rk = rk;
-	kh->ko = ko;
-	kh->kafkaType = RD_KAFKA_CONSUMER;
-	kh->threadId = Tcl_GetCurrentThread ();
-	kh->metadata = NULL;
-	kh->topicConf = NULL;
-	kh->subscriberCallback = NULL;
+	kafkatcl_handleClientData *kh = kafkatcl_createHandle(ko, rk, RD_KAFKA_CONSUMER);
 
 	// Start Tcl setup
 
