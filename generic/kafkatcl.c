@@ -1192,7 +1192,7 @@ kafkatcl_EventCheckProc (ClientData clientData, int flags) {
     assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
 
 	// polling with timeoutMS of 0 is nonblocking, which is ideal
-	rd_kafka_consumer_poll (kh->rk, 0);
+	rd_kafka_poll (kh->rk, 0);
 	kafkatcl_check_consumer_callbacks (kh->ko);
 }
 
