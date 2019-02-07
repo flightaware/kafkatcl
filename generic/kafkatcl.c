@@ -1282,6 +1282,7 @@ kafkatcl_stats_eventProc (Tcl_Event *tevPtr, int flags) {
 
 	kafkatcl_statsEvent *evPtr = (kafkatcl_statsEvent *)tevPtr;
 	kafkatcl_objectClientData *ko = evPtr->ko;
+	assert (ko->kafka_object_magic == KAFKA_OBJECT_MAGIC);
 	Tcl_Interp *interp = ko->interp;
 
 	Tcl_Obj *jsonObj = Tcl_NewStringObj (evPtr->json, evPtr->jsonLen);
@@ -1320,6 +1321,7 @@ kafkatcl_error_eventProc (Tcl_Event *tevPtr, int flags) {
 
 	kafkatcl_errorEvent *evPtr = (kafkatcl_errorEvent *)tevPtr;
 	kafkatcl_objectClientData *ko = evPtr->ko;
+	assert (ko->kafka_object_magic == KAFKA_OBJECT_MAGIC);
 	Tcl_Interp *interp = ko->interp;
 	const char *kafkaErrorString = rd_kafka_err2str (evPtr->err);
 	const char *kafkaErrorCodeString = kafkatcl_kafka_error_to_errorcode_string (evPtr->err);
