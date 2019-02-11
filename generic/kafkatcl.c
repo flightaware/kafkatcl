@@ -28,6 +28,13 @@ kafkatcl_consume_stop_all_partitions (kafkatcl_topicClientData *kt);
 int
 kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]);
 
+void
+kafkatcl_EventSetupProc (ClientData clientData, int flags);
+void
+kafkatcl_EventCheckProc (ClientData clientData, int flags);
+void
+kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags);
+
 // DEBUG
 #ifdef DEBUGPRINTF
 void kafkatcl_dump_topic_partition_list(rd_kafka_topic_partition_list_t *topics)
@@ -157,6 +164,9 @@ kafkatcl_handleObjectDelete (ClientData clientData)
 
 	rd_kafka_topic_conf_destroy (kh->topicConf);
 
+	// Stop passing this to Tcl event handlers
+        Tcl_DeleteEventSource (kafkatcl_EventSetupProc, kafkatcl_EventCheckProc, (ClientData) kh);
+
     ckfree((char *)clientData);
 }
 
@@ -221,20 +231,30 @@ kafkatcl_subscriberObjectDelete (ClientData clientData)
 
     assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
 
-	// TODO: if there's a queue out, call rd_kafka_queue_destroy() on it
+	// Clean up embedded Tcl objects
+	if(kh->subscriberCallback)
+		Tcl_DecrRefCount(kh->subscriberCallback);
+	kh->subscriberCallback = NULL;
 
-	rd_kafka_consumer_close(kh->rk);
+	// Stop passing Tcl events to this object
+        Tcl_DeleteEventSource (kafkatcl_EventSetupProc, kafkatcl_SubscriberEventCheckProc, (ClientData) kh);
 
-	rd_kafka_destroy (kh->rk);
+	// Clen up topic and metadata before destroying subscriber
+	// (see https://github.com/edenhill/librdkafka/wiki/Proper-termination-sequence )
+	if (kh->topicConf != NULL) {
+		rd_kafka_topic_conf_destroy (kh->topicConf);
+	}
 
 	// destroy metadata if it exists
 	if (kh->metadata != NULL) {
 		rd_kafka_metadata_destroy (kh->metadata);
 	}
 
-	if (kh->topicConf != NULL) {
-		rd_kafka_topic_conf_destroy (kh->topicConf);
-	}
+	// TODO: if there's a queue out, call rd_kafka_queue_destroy() on it
+
+	rd_kafka_consumer_close(kh->rk);
+
+	rd_kafka_destroy (kh->rk);
 
 	// clear the kafka handle magic number; this will help us catch
 	// attempted reuse of the structure after freeing
@@ -1144,6 +1164,7 @@ kafkatcl_invoke_callback_with_argument (Tcl_Interp *interp, Tcl_Obj *callbackObj
 	}
 
 	ckfree ((char *)evalObjv);
+
 	return tclReturnCode;
 }
 
@@ -1505,7 +1526,9 @@ kafkatcl_delivery_report_eventProc (Tcl_Event *tevPtr, int flags) {
 	// even if this fails we still want the event taken off the queue
 	// this function will do the background error thing if there is a tcl
 	// error running the callback
-	kafkatcl_invoke_callback_with_argument (interp, ko->deliveryReportCallbackObj, listObj);
+	if(listObj) {
+		kafkatcl_invoke_callback_with_argument (interp, ko->deliveryReportCallbackObj, listObj);
+	}
 
 	// tell the dispatcher we handled it.  0 would mean we didn't deal with
 	// it and don't want it removed from the queue
@@ -1867,7 +1890,7 @@ kafkatcl_consume_callback_eventProc (Tcl_Event *tevPtr, int flags) {
 	kafkatcl_consumeCallbackEvent *evPtr = (kafkatcl_consumeCallbackEvent *)tevPtr;
 	kafkatcl_runningConsumer *krc = evPtr->krc;
 
-    assert (krc->kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
+	assert (krc->kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
 
 	Tcl_Interp *interp = krc->kh->interp;
 
@@ -1914,7 +1937,7 @@ kafkatcl_consume_callback_queue_eventProc (Tcl_Event *tevPtr, int flags) {
 	kafkatcl_consumeCallbackEvent *evPtr = (kafkatcl_consumeCallbackEvent *)tevPtr;
 	kafkatcl_runningConsumer *krc = evPtr->krc;
 
-    assert (krc->kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
+	assert (krc->kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
 
 	Tcl_Interp *interp = krc->kh->interp;
 
@@ -3745,7 +3768,7 @@ kafkatcl_set_subscriber_callback(Tcl_Interp *interp, kafkatcl_handleClientData *
 void
 kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)clientData;
-    assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
+	assert (kh->kafka_handle_magic == KAFKA_HANDLE_MAGIC);
 	rd_kafka_t *rk = kh->rk;
 	rd_kafka_message_t *message;
 	Tcl_Interp *interp = kh->interp;
@@ -3754,6 +3777,11 @@ kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
 	// User must then explicitly read messages (via subscriber consume) frequently!
 	if(!kh->subscriberCallback)
 		return;
+
+	kh->inCallback = 1;
+
+	Tcl_Obj *cb = kh->subscriberCallback;
+	Tcl_IncrRefCount(cb); // Save it from being deleted if the hadle is deleted in the callback
 
 	while((message = rd_kafka_consumer_poll(rk, 0))) {
 		rd_kafka_timestamp_type_t tstype;
@@ -3765,9 +3793,14 @@ kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
 
 		if(msgList) {
 			// Note - this increments and decrements the refcount on msgList.
-			kafkatcl_invoke_callback_with_argument (interp, kh->subscriberCallback, msgList);
+			kafkatcl_invoke_callback_with_argument (interp, cb, msgList);
 		}
 	}
+
+	kh->inCallback = 0;
+
+	// Stake undead callbacks.
+	Tcl_DecrRefCount(cb);
 }
 
 /*
@@ -3804,6 +3837,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 		"meta",
 		"info",
 		"delete",
+		"error",
 		NULL
 	};
 
@@ -3819,7 +3853,8 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 		OPT_WATERMARKS,
 		OPT_META,
 		OPT_INFO,
-		OPT_DELETE
+		OPT_DELETE,
+		OPT_ERROR
 	};
 
 	/* basic validation of command line arguments */
@@ -4240,12 +4275,29 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 				return TCL_ERROR;
 			}
 
+			if(kh->inCallback) {
+				Tcl_SetObjResult (interp, Tcl_NewStringObj ("Can not delete Subscriber from inside subscriber callback", -1));
+				return TCL_ERROR;
+			}
+
 			if (Tcl_DeleteCommandFromToken (kh->interp, kh->cmdToken) == TCL_ERROR) {
 				resultCode = TCL_ERROR;
 			}
 			break;
 		}
 
+		case OPT_ERROR: {
+			if (objc != 4) {
+				Tcl_WrongNumArgs(interp, 2, objv, "errno reason");
+				return TCL_ERROR;
+			}
+
+			if (Tcl_GetIntFromObj (interp, objv[2], &errno) == TCL_ERROR) {
+				return TCL_ERROR;
+			}
+
+			kafkatcl_error_callback(rk, errno, Tcl_GetString(objv[3]), (void *)(kh->ko));
+		}
     }
     return resultCode;
 }
@@ -4253,7 +4305,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 /*
  *----------------------------------------------------------------------
  *
- * kafkatcl_kafkatcl_generateHandleCommandName --
+ * kafkatcl_generateHandleCommandName --
  *
  *    Generate a unique name for a Tcl command.
  * Results:
@@ -4268,6 +4320,33 @@ char *kafkatcl_generateHandleCommandName()
 	char *cmdName = ckalloc (baseNameLength);
 	snprintf (cmdName, baseNameLength, HANDLE_STRING_FORMAT, nextAutoCounter++);
 	return cmdName;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * kafkatcl_createHandle --
+ *
+ *	A utility function to allocate and initialize all elements of a kafkatcl_handleClientData structure.
+ *
+ *----------------------------------------------------------------------
+ */
+kafkatcl_handleClientData *kafkatcl_createHandle(kafkatcl_objectClientData *ko, rd_kafka_t *rk, rd_kafka_type_t kafkaType)
+{
+	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)ckalloc (sizeof (kafkatcl_handleClientData));
+
+	kh->kafka_handle_magic = KAFKA_HANDLE_MAGIC;
+	kh->interp = ko->interp;
+	kh->rk = rk;
+	kh->ko = ko;
+	kh->kafkaType = kafkaType;
+	kh->threadId = Tcl_GetCurrentThread ();
+	kh->metadata = NULL;
+	kh->topicConf = NULL;
+	kh->subscriberCallback = NULL;
+	kh->inCallback = 0;
+
+	return kh;
 }
 
 /*
@@ -4304,14 +4383,7 @@ kafkatcl_createHandleObjectCommand (kafkatcl_objectClientData *ko, char *cmdName
 		return TCL_ERROR;
 	}
 
-	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)ckalloc (sizeof (kafkatcl_handleClientData));
-	kh->kafka_handle_magic = KAFKA_HANDLE_MAGIC;
-	kh->interp = interp;
-	kh->rk = rk;
-	kh->ko = ko;
-	kh->kafkaType = kafkaType;
-	kh->threadId = Tcl_GetCurrentThread ();
-	kh->metadata = NULL;
+	kafkatcl_handleClientData *kh = kafkatcl_createHandle(ko, rk, kafkaType);
 	kh->topicConf = rd_kafka_topic_conf_dup (ko->topicConf);
 
 	Tcl_CreateEventSource (kafkatcl_EventSetupProc, kafkatcl_EventCheckProc, (ClientData) kh);
@@ -4389,7 +4461,7 @@ kafkatcl_createSubscriberObjectCommand (kafkatcl_objectClientData *ko, char *cmd
 	char errStr[256];
 
 	// allocate one of our kafka handle client data objects for Tcl and
-	// configure it - TODO - make sure this is will work and that we don't need a new clientData type
+	// configure it
 	Tcl_Interp *interp = ko->interp;
 
 	// start kafka setup
@@ -4428,17 +4500,7 @@ kafkatcl_createSubscriberObjectCommand (kafkatcl_objectClientData *ko, char *cmd
 	}
 
 	// finished kafka setup, save state
-
-	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)ckalloc (sizeof (kafkatcl_handleClientData));
-	kh->kafka_handle_magic = KAFKA_HANDLE_MAGIC;
-	kh->interp = interp;
-	kh->rk = rk;
-	kh->ko = ko;
-	kh->kafkaType = RD_KAFKA_CONSUMER;
-	kh->threadId = Tcl_GetCurrentThread ();
-	kh->metadata = NULL;
-	kh->topicConf = NULL;
-	kh->subscriberCallback = NULL;
+	kafkatcl_handleClientData *kh = kafkatcl_createHandle(ko, rk, RD_KAFKA_CONSUMER);
 
 	// Start Tcl setup
 
@@ -4933,6 +4995,4 @@ kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Ob
 }
 
 /* vim: set ts=4 sw=4 sts=4 noet : */
-
-
 

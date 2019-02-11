@@ -118,6 +118,7 @@ typedef struct kafkatcl_handleClientData
 	Tcl_ThreadId threadId;
 	const struct rd_kafka_metadata *metadata;
 	Tcl_Obj *subscriberCallback;
+	int inCallback;
 } kafkatcl_handleClientData;
 
 typedef struct kafkatcl_topicClientData
