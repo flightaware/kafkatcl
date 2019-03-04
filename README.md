@@ -548,9 +548,11 @@ List of topics and partitions assigned to this subscriber.
 
 Manually override the assignment or remove it completely with a null assignment.
 
-* *$subscriber* **consume**
+* *$subscriber* **consume** *?timeout?*
 
-Return the next event from the subscription as a key-value Tcl list.
+Return the next event from the subscription as a key-value Tcl list. Default timeout is 0 - return immediately if no data available.
+
+Returns empty list on timeout, list containing "error" tag on error.
 
 * *$subscriber* **callback** *?function?*
 
