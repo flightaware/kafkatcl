@@ -592,7 +592,7 @@ Print metadata for debugging.
 
 * *$subscriber* **info** *subcommand*
 
-Subcommand may be *topics*, *partitions*, or *brokers*.
+Subcommand may be **topics**, **partitions** *topic*, or **brokers**.
 
 Received Kafka Messages
 ---
