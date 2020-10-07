@@ -3755,7 +3755,7 @@ kafkatcl_set_subscriber_callback(Tcl_Interp *interp, kafkatcl_handleClientData *
  * kafkatcl_SubscriberEventCheckProc --
  *
  *    This is a function we pass to Tcl_CreateEventSource that is
- *    invoked to see if any subscriber events have occurred and to queue them.
+ *    invoked to see if any subscriber events have occurred and to handle them.
  *
  *    polls rd_kafka_consumer_poll until we get no messages returned or an EOF
  *    message (null return from kafkatcl_message_to_tcl_list).
@@ -3794,6 +3794,12 @@ kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
 		if(msgList) {
 			// Note - this increments and decrements the refcount on msgList.
 			kafkatcl_invoke_callback_with_argument (interp, cb, msgList);
+
+			// If the handled event has deleted the subscriber callback, break and drop back
+			// to the Tcl event loop. Note as perviously that the user must either recreate
+			// the callback or handle the messages directly.
+			if(!kh->subscriberCallback)
+				break;
 		}
 	}
 
