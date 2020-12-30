@@ -1,3 +1,5 @@
+![Linux CI](https://github.com/flightaware/kafkatcl/workflows/Linux%20CI/badge.svg)
+
 KafkaTcl, a Tcl interface to the Apache Kafka distributed messaging system
 ===
 
