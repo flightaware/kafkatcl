@@ -306,7 +306,7 @@ enum options {
  *--------------------------------------------------------------
  */
 int
-kafkatcl_parse_offset (Tcl_Interp *interp, Tcl_Obj *offsetObj, int64_t *offsetPtr) {
+kafkatcl_parse_offset (Tcl_Interp *interp, Tcl_Obj *offsetObj, Tcl_WideInt *offsetPtr) {
 	Tcl_WideInt offsetCount;
 	int optionIndex;
 
@@ -1124,7 +1124,7 @@ kafkatcl_queue_command_to_queueClientData (Tcl_Interp *interp, char *queueComman
  */
 int
 kafkatcl_invoke_callback_with_argument (Tcl_Interp *interp, Tcl_Obj *callbackObj, Tcl_Obj *argumentObj) {
-	int callbackListObjc;
+	Tcl_Size callbackListObjc;
 	Tcl_Obj **callbackListObjv;
 	int tclReturnCode;
 
@@ -2238,7 +2238,7 @@ kafkatcl_handle_topic_info (Tcl_Interp *interp, kafkatcl_topicClientData *kt, in
 
 		case SUBOPT_CONSISTENT_PARTITION: {
 			char *key = NULL;
-			int keyLen = 0;
+			Tcl_Size keyLen = 0;
 			int whichPartition;
 			const struct rd_kafka_metadata_topic *t;
 
@@ -2886,11 +2886,11 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 				break;
 			}
 
-			int payloadLength;
+			Tcl_Size payloadLength;
 			unsigned char *payload = Tcl_GetByteArrayFromObj (objv[3], &payloadLength);
 
 			const void *key = NULL;
-			int keyLength = 0;
+			Tcl_Size keyLength = 0;
 
 			if (objc == 5) {
 				key = Tcl_GetByteArrayFromObj (objv[4], &keyLength);
@@ -2904,7 +2904,7 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 		}
 
 		case OPT_PRODUCE_BATCH: {
-			int listObjc;
+			Tcl_Size listObjc;
 			Tcl_Obj **listObjv;
 			int partition;
 
@@ -2933,7 +2933,7 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			rd_kafka_message_t *rkmessages = (rd_kafka_message_t *)ckalloc (sizeof(rd_kafka_message_t) * listObjc);
 
 			for (i = 0; i < listObjc; i++) {
-				int rowObjc;
+				Tcl_Size rowObjc;
 				Tcl_Obj **rowObjv;
 
 				if (Tcl_ListObjGetElements (interp, listObjv[i], &rowObjc, &rowObjv) == TCL_ERROR) {
@@ -2948,7 +2948,7 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 					goto batcherr;
 				}
 
-				int payloadLength;
+				Tcl_Size payloadLength;
 				unsigned char *payload = Tcl_GetByteArrayFromObj (rowObjv[0], &payloadLength);
 
 				void *key = NULL;
@@ -3264,7 +3264,7 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 int
 kafkatcl_add_brokers (kafkatcl_handleClientData *kh, Tcl_Obj *brokers) {
 	Tcl_Interp *interp = kh->interp;
-	int brokersObjc;
+	Tcl_Size brokersObjc;
 	Tcl_Obj **brokersObjv;
 	int i;
 	Tcl_DString ds;
@@ -3285,7 +3285,7 @@ kafkatcl_add_brokers (kafkatcl_handleClientData *kh, Tcl_Obj *brokers) {
 
 	for (i = 0; i < brokersObjc; i++) {
 		char *broker;
-		int brokerLen;
+		Tcl_Size brokerLen;
 
 		broker = Tcl_GetStringFromObj (brokersObjv[i], &brokerLen);
 		Tcl_DStringAppend (&ds, broker, brokerLen);
@@ -3643,7 +3643,7 @@ rd_kafka_topic_partition_list_t *kafkatcl_objv_to_topic_partition_list(Tcl_Inter
 		char     *topic = NULL;
 		int       partition = 0;
 		Tcl_WideInt offset = 0;
-		int       tupleObjc;
+		Tcl_Size  tupleObjc;
 		Tcl_Obj **tupleObjv;
 
 		// make this split out a Tcl list (tuple) {topic ?partition? ?offset?}
@@ -3731,7 +3731,7 @@ int
 kafkatcl_set_subscriber_callback(Tcl_Interp *interp, kafkatcl_handleClientData *kh, Tcl_Obj *cb)
 {
 	int res;
-	int len;
+	Tcl_Size len;
 
 	if((res = Tcl_ListObjLength(interp, cb, &len)) == TCL_OK) {
 		if(len == 0 || strcmp(Tcl_GetString(cb), "#none") == 0)
