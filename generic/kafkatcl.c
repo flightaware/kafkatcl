@@ -306,7 +306,7 @@ enum options {
  *--------------------------------------------------------------
  */
 int
-kafkatcl_parse_offset (Tcl_Interp *interp, Tcl_Obj *offsetObj, Tcl_WideInt *offsetPtr) {
+kafkatcl_parse_offset (Tcl_Interp *interp, Tcl_Obj *offsetObj, int64_t *offsetPtr) {
 	Tcl_WideInt offsetCount;
 	int optionIndex;
 
@@ -3642,7 +3642,7 @@ rd_kafka_topic_partition_list_t *kafkatcl_objv_to_topic_partition_list(Tcl_Inter
 		rd_kafka_topic_partition_t *added;
 		char     *topic = NULL;
 		int       partition = 0;
-		Tcl_WideInt offset = 0;
+		int64_t   offset = 0;
 		Tcl_Size  tupleObjc;
 		Tcl_Obj **tupleObjv;
 
