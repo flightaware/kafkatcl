@@ -84,7 +84,7 @@ struct {								\
 } while (0)
 
 extern int
-kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objvp[]);
+kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *const objvp[]);
 
 typedef struct kafkatcl_objectClientData
 {
