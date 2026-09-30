@@ -27,6 +27,19 @@
 #define KAFKA_TOPIC_MAGIC 71077345
 #define KAFKA_QUEUE_MAGIC 13377331
 
+/*
+ * Tcl_Size was introduced in Tcl 9.  kafkatcl still supports building against
+ * Tcl 8.6, where Tcl object and list sizes are int-sized.
+ */
+#ifndef TCL_SIZE_MAX
+# define Tcl_GetSizeIntFromObj Tcl_GetIntFromObj
+# define TCL_SIZE_MAX      INT_MAX
+# ifndef Tcl_Size
+    typedef int Tcl_Size;
+# endif
+# define TCL_SIZE_MODIFIER ""
+#endif
+
 /* KT_LIST_* - bidirectionally linked list routines from BSD.
  * See LICENSE file for copyright information.
  */
@@ -84,7 +97,7 @@ struct {								\
 } while (0)
 
 extern int
-kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objvp[]);
+kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *const objvp[]);
 
 typedef struct kafkatcl_objectClientData
 {

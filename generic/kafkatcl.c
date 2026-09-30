@@ -26,7 +26,7 @@ void
 kafkatcl_consume_stop_all_partitions (kafkatcl_topicClientData *kt);
 
 int
-kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]);
+kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 
 void
 kafkatcl_EventSetupProc (ClientData clientData, int flags);
@@ -263,7 +263,7 @@ kafkatcl_subscriberObjectDelete (ClientData clientData)
     ckfree((char *)clientData);
 }
 
-static CONST char *optionStrings[] = {
+static const char *optionStrings[] = {
 	"beginning",
 	"end",
 	"stored",
@@ -486,7 +486,7 @@ int
 kafkatcl_obj_to_log_level (Tcl_Interp *interp, Tcl_Obj *tclObj, int *logLevel) {
     int                 logIndex;
 
-    static CONST char *logLevels[] = {
+    static const char *logLevels[] = {
         "emerg",
         "alert",
         "crit",
@@ -1124,7 +1124,7 @@ kafkatcl_queue_command_to_queueClientData (Tcl_Interp *interp, char *queueComman
  */
 int
 kafkatcl_invoke_callback_with_argument (Tcl_Interp *interp, Tcl_Obj *callbackObj, Tcl_Obj *argumentObj) {
-	int callbackListObjc;
+	Tcl_Size callbackListObjc;
 	Tcl_Obj **callbackListObjv;
 	int tclReturnCode;
 
@@ -2088,7 +2088,7 @@ kafkatcl_set_topic_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf, c
  *----------------------------------------------------------------------
  */
 int
-kafkatcl_handle_topic_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf, int objc, Tcl_Obj *CONST objv[]) {
+kafkatcl_handle_topic_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf, int objc, Tcl_Obj *const objv[]) {
 	if (objc % 2 != 0) {
 		Tcl_WrongNumArgs (interp, 2, objv, "?name value ...?");
 		return TCL_ERROR;
@@ -2128,10 +2128,10 @@ kafkatcl_handle_topic_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf
  *----------------------------------------------------------------------
  */
 int
-kafkatcl_partitioner_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf, int objc, Tcl_Obj *CONST objv[]) {
+kafkatcl_partitioner_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf, int objc, Tcl_Obj *const objv[]) {
 	int suboptIndex;
 
-	static CONST char *subOptions[] = {
+	static const char *subOptions[] = {
 		"random",
 		"consistent",
 		NULL
@@ -2178,7 +2178,7 @@ kafkatcl_partitioner_conf (Tcl_Interp *interp, rd_kafka_topic_conf_t *topicConf,
  *----------------------------------------------------------------------
  */
 int
-kafkatcl_handle_topic_info (Tcl_Interp *interp, kafkatcl_topicClientData *kt, int objc, Tcl_Obj *CONST objv[]) {
+kafkatcl_handle_topic_info (Tcl_Interp *interp, kafkatcl_topicClientData *kt, int objc, Tcl_Obj *const objv[]) {
 	int suboptIndex;
 
 	if ((objc < 3) || (objc > 4)) {
@@ -2186,7 +2186,7 @@ kafkatcl_handle_topic_info (Tcl_Interp *interp, kafkatcl_topicClientData *kt, in
 		return TCL_ERROR;
 	}
 
-	static CONST char *subOptions[] = {
+	static const char *subOptions[] = {
 		"name",
 		"partitions",
 		"consistent_partition",
@@ -2238,7 +2238,7 @@ kafkatcl_handle_topic_info (Tcl_Interp *interp, kafkatcl_topicClientData *kt, in
 
 		case SUBOPT_CONSISTENT_PARTITION: {
 			char *key = NULL;
-			int keyLen = 0;
+			Tcl_Size keyLen = 0;
 			int whichPartition;
 			const struct rd_kafka_metadata_topic *t;
 
@@ -2559,14 +2559,14 @@ kafkatcl_check_consumer_callbacks (kafkatcl_objectClientData *ko) {
  *----------------------------------------------------------------------
  */
 int
-kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
     int         optIndex;
 	kafkatcl_topicClientData *kt = (kafkatcl_topicClientData *)cData;
 	rd_kafka_topic_t *rkt = kt->rkt;
 	int resultCode = TCL_OK;
 
-    static CONST char *options[] = {
+    static const char *options[] = {
         "consume",
         "consume_batch",
 		"info",
@@ -2838,14 +2838,14 @@ kafkatcl_topicConsumerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
  *----------------------------------------------------------------------
  */
 int
-kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
     int         optIndex;
 	kafkatcl_topicClientData *kt = (kafkatcl_topicClientData *)cData;
 	rd_kafka_topic_t *rkt = kt->rkt;
 	int resultCode = TCL_OK;
 
-    static CONST char *options[] = {
+    static const char *options[] = {
         "produce",
         "produce_batch",
 		"info",
@@ -2886,11 +2886,11 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 				break;
 			}
 
-			int payloadLength;
+			Tcl_Size payloadLength;
 			unsigned char *payload = Tcl_GetByteArrayFromObj (objv[3], &payloadLength);
 
 			const void *key = NULL;
-			int keyLength = 0;
+			Tcl_Size keyLength = 0;
 
 			if (objc == 5) {
 				key = Tcl_GetByteArrayFromObj (objv[4], &keyLength);
@@ -2904,7 +2904,7 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 		}
 
 		case OPT_PRODUCE_BATCH: {
-			int listObjc;
+			Tcl_Size listObjc;
 			Tcl_Obj **listObjv;
 			int partition;
 
@@ -2933,7 +2933,7 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 			rd_kafka_message_t *rkmessages = (rd_kafka_message_t *)ckalloc (sizeof(rd_kafka_message_t) * listObjc);
 
 			for (i = 0; i < listObjc; i++) {
-				int rowObjc;
+				Tcl_Size rowObjc;
 				Tcl_Obj **rowObjv;
 
 				if (Tcl_ListObjGetElements (interp, listObjv[i], &rowObjc, &rowObjv) == TCL_ERROR) {
@@ -2948,7 +2948,7 @@ kafkatcl_topicProducerObjectObjCmd(ClientData cData, Tcl_Interp *interp, int obj
 					goto batcherr;
 				}
 
-				int payloadLength;
+				Tcl_Size payloadLength;
 				unsigned char *payload = Tcl_GetByteArrayFromObj (rowObjv[0], &payloadLength);
 
 				void *key = NULL;
@@ -3092,14 +3092,14 @@ kafkatcl_createTopicObjectCommand (kafkatcl_handleClientData *kh, char *cmdName,
  *----------------------------------------------------------------------
  */
 int
-kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
     int         optIndex;
 	kafkatcl_queueClientData *kq = (kafkatcl_queueClientData *)cData;
 	rd_kafka_queue_t *rkqu = kq->rkqu;
 	int resultCode = TCL_OK;
 
-    static CONST char *options[] = {
+    static const char *options[] = {
         "consume",
         "consume_batch",
         "consume_callback",
@@ -3264,7 +3264,7 @@ kafkatcl_queueObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 int
 kafkatcl_add_brokers (kafkatcl_handleClientData *kh, Tcl_Obj *brokers) {
 	Tcl_Interp *interp = kh->interp;
-	int brokersObjc;
+	Tcl_Size brokersObjc;
 	Tcl_Obj **brokersObjv;
 	int i;
 	Tcl_DString ds;
@@ -3285,7 +3285,7 @@ kafkatcl_add_brokers (kafkatcl_handleClientData *kh, Tcl_Obj *brokers) {
 
 	for (i = 0; i < brokersObjc; i++) {
 		char *broker;
-		int brokerLen;
+		Tcl_Size brokerLen;
 
 		broker = Tcl_GetStringFromObj (brokersObjv[i], &brokerLen);
 		Tcl_DStringAppend (&ds, broker, brokerLen);
@@ -3320,7 +3320,7 @@ kafkatcl_add_brokers (kafkatcl_handleClientData *kh, Tcl_Obj *brokers) {
  *----------------------------------------------------------------------
  */
 int
-kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
     int         optIndex;
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)cData;
@@ -3328,7 +3328,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 	rd_kafka_t *rk = kh->rk;
 	int resultCode = TCL_OK;
 
-    static CONST char *options[] = {
+    static const char *options[] = {
         "name",
         "new_topic",
 		"log_level",
@@ -3476,7 +3476,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 				return TCL_ERROR;
 			}
 
-			static CONST char *subOptions[] = {
+			static const char *subOptions[] = {
 				"refresh",
 				"print",
 				NULL
@@ -3523,7 +3523,7 @@ kafkatcl_handleObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_
 				return TCL_ERROR;
 			}
 
-			static CONST char *subOptions[] = {
+			static const char *subOptions[] = {
 				"topics",
 				"brokers",
 				"partitions",
@@ -3642,8 +3642,8 @@ rd_kafka_topic_partition_list_t *kafkatcl_objv_to_topic_partition_list(Tcl_Inter
 		rd_kafka_topic_partition_t *added;
 		char     *topic = NULL;
 		int       partition = 0;
-		Tcl_WideInt offset = 0;
-		int       tupleObjc;
+		int64_t   offset = 0;
+		Tcl_Size  tupleObjc;
 		Tcl_Obj **tupleObjv;
 
 		// make this split out a Tcl list (tuple) {topic ?partition? ?offset?}
@@ -3731,7 +3731,7 @@ int
 kafkatcl_set_subscriber_callback(Tcl_Interp *interp, kafkatcl_handleClientData *kh, Tcl_Obj *cb)
 {
 	int res;
-	int len;
+	Tcl_Size len;
 
 	if((res = Tcl_ListObjLength(interp, cb, &len)) == TCL_OK) {
 		if(len == 0 || strcmp(Tcl_GetString(cb), "#none") == 0)
@@ -3816,7 +3816,7 @@ kafkatcl_SubscriberEventCheckProc (ClientData clientData, int flags) {
  *----------------------------------------------------------------------
  */
 int
-kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
 	int                        optIndex;
 	kafkatcl_handleClientData *kh = (kafkatcl_handleClientData *)cData;
@@ -3824,7 +3824,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 	rd_kafka_t                *rk = kh->rk;
 	int                        resultCode = TCL_OK;
 
-	static CONST char *options[] = {
+	static const char *options[] = {
 		"subscribe", // topics (no topics returns current subscription)
 		"unsubscribe", // clear subscription list
 		"assign", // manually assign topics
@@ -4166,7 +4166,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 				return TCL_ERROR;
 			}
 
-			static CONST char *subOptions[] = {
+			static const char *subOptions[] = {
 				"refresh",
 				"print",
 				NULL
@@ -4213,7 +4213,7 @@ kafkatcl_handleSubscriberObjectObjCmd(ClientData cData, Tcl_Interp *interp, int 
 				return TCL_ERROR;
 			}
 
-			static CONST char *subOptions[] = {
+			static const char *subOptions[] = {
 				"topics",
 				"brokers",
 				"partitions",
@@ -4540,13 +4540,13 @@ kafkatcl_createSubscriberObjectCommand (kafkatcl_objectClientData *ko, char *cmd
  *----------------------------------------------------------------------
  */
 int
-kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
 	int         optIndex;
 	kafkatcl_objectClientData *ko = (kafkatcl_objectClientData *)cData;
 	int resultCode = TCL_OK;
 
-	static CONST char *options[] = {
+	static const char *options[] = {
 		"config",
 		"producer_creator",
 		"consumer_creator",
@@ -4664,7 +4664,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 				return TCL_ERROR;
 			}
 
-			static CONST char *subOptions[] = {
+			static const char *subOptions[] = {
 				"callback",
 				"sample",
 				"every",
@@ -4782,7 +4782,7 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 				return TCL_ERROR;
 			}
 
-			static CONST char *subOptions[] = {
+			static const char *subOptions[] = {
 				"syslog",
 				"stderr",
 				"none",
@@ -4892,14 +4892,14 @@ kafkatcl_kafkaObjectObjCmd(ClientData cData, Tcl_Interp *interp, int objc, Tcl_O
 
     /* ARGSUSED */
 int
-kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+kafkatcl_kafkaObjCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
     kafkatcl_objectClientData *ko;
     int                 optIndex;
     char               *cmdName;
     int                 autoGeneratedName;
 
-    static CONST char *options[] = {
+    static const char *options[] = {
         "create",
         "version",
         NULL
